@@ -1,76 +1,85 @@
 import { useState } from 'react';
-import Card from './Card';
-import { Edit2, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Edit2, Trash2 } from 'lucide-react';
 
-const TableProductos = ({ products = [] }) => {
+const TableProductos = ({ products = [], onEdit, onDelete }) => {
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const itemsPerPage = 8;
 
-  const startIndex = (currentPage - 1) * itemsPerPage;
+  const totalPages = Math.ceil(products.length / itemsPerPage);
+  const safePage = Math.min(currentPage, totalPages || 1);
+  const startIndex = (safePage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
   const currentProducts = products.slice(startIndex, endIndex);
-  const totalPages = Math.ceil(products.length / itemsPerPage);
 
   const getStockColor = (stock) => {
-    if (stock === 0) return 'bg-red-100 text-red-800';
-    if (stock < 5) return 'bg-yellow-100 text-yellow-800';
-    return 'bg-green-100 text-green-800';
+    if (stock === 0) return 'bg-red-50 text-red-700 ring-red-200';
+    if (stock < 6) return 'bg-yellow-50 text-yellow-700 ring-yellow-200';
+    return 'bg-green-50 text-green-700 ring-green-200';
   };
 
   const getCategoryColor = (category) => {
     const colors = {
-      Hogar: 'bg-blue-100 text-blue-800',
-      Electrónica: 'bg-purple-100 text-purple-800',
-      Moda: 'bg-pink-100 text-pink-800',
-      Alimentos: 'bg-orange-100 text-orange-800',
-      Otros: 'bg-gray-100 text-gray-800',
+      Accesorios: 'bg-blue-50 text-blue-700 ring-blue-200',
+      Cómputo: 'bg-violet-50 text-violet-700 ring-violet-200',
+      Servicios: 'bg-green-50 text-green-700 ring-green-200',
+      Impresoras: 'bg-orange-50 text-orange-700 ring-orange-200',
+      Otros: 'bg-slate-50 text-slate-700 ring-slate-200',
     };
     return colors[category] || colors.Otros;
   };
 
   return (
-    <Card>
+    <div>
       <div className="overflow-x-auto">
-        <table className="w-full">
+        <table className="w-full min-w-[780px]">
           <thead>
-            <tr className="border-b border-gray-200 bg-gray-50">
-              <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Producto</th>
-              <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Categoría</th>
-              <th className="px-6 py-3 text-right text-sm font-semibold text-gray-700">Precio</th>
-              <th className="px-6 py-3 text-right text-sm font-semibold text-gray-700">Stock</th>
-              <th className="px-6 py-3 text-center text-sm font-semibold text-gray-700">Acciones</th>
+            <tr className="border-b border-slate-200 bg-slate-50">
+              <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">SKU</th>
+              <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Producto</th>
+              <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Categoría</th>
+              <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Canal</th>
+              <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">Precio</th>
+              <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">Stock</th>
+              <th className="px-5 py-3 text-center text-xs font-semibold uppercase tracking-wide text-slate-500">Acciones</th>
             </tr>
           </thead>
           <tbody>
             {currentProducts.length > 0 ? (
               currentProducts.map((product) => (
-                <tr
-                  key={product.id}
-                  className="border-b border-gray-100 hover:bg-gray-50 transition-colors"
-                >
-                  <td className="px-6 py-4 text-sm text-gray-900 font-medium">
-                    {product.nombre}
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${getCategoryColor(product.categoria)}`}>
+                <tr key={product.id} className="border-b border-slate-100 hover:bg-slate-50/70">
+                  <td className="px-5 py-4 text-sm font-medium text-slate-500">{product.sku}</td>
+                  <td className="px-5 py-4 text-sm font-semibold text-slate-950">{product.nombre}</td>
+                  <td className="px-5 py-4">
+                    <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ring-1 ${getCategoryColor(product.categoria)}`}>
                       {product.categoria}
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-900 text-right font-medium">
-                    ${product.precio.toFixed(2)}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-right">
-                    <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${getStockColor(product.stock)}`}>
-                      {product.stock} unidades
+                  <td className="px-5 py-4 text-sm text-slate-600">{product.canal}</td>
+                  <td className="px-5 py-4 text-right text-sm font-semibold text-slate-950">${Number(product.precio).toFixed(2)}</td>
+                  <td className="px-5 py-4 text-right">
+                    <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ring-1 ${getStockColor(product.stock)}`}>
+                      {product.stock} u
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-center">
+                  <td className="px-5 py-4">
                     <div className="flex items-center justify-center gap-2">
-                      <button className="p-2 hover:bg-blue-100 rounded-lg transition-colors text-primary-600">
-                        <Edit2 size={16} />
+                      <button
+                        type="button"
+                        aria-label="Editar producto"
+                        onClick={() => onEdit?.(product)}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-100"
+                      >
+                        <Edit2 size={15} />
+                        Editar
                       </button>
-                      <button className="p-2 hover:bg-red-100 rounded-lg transition-colors text-red-600">
-                        <Trash2 size={16} />
+                      <button
+                        type="button"
+                        aria-label="Eliminar producto"
+                        onClick={() => onDelete?.(product)}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-100"
+                      >
+                        <Trash2 size={15} />
+                        Eliminar
                       </button>
                     </div>
                   </td>
@@ -78,8 +87,8 @@ const TableProductos = ({ products = [] }) => {
               ))
             ) : (
               <tr>
-                <td colSpan="5" className="px-6 py-8 text-center text-gray-500">
-                  No hay productos disponibles
+                <td colSpan="7" className="px-5 py-10 text-center text-sm text-slate-500">
+                  No hay productos disponibles.
                 </td>
               </tr>
             )}
@@ -87,44 +96,46 @@ const TableProductos = ({ products = [] }) => {
         </table>
       </div>
 
-      {/* Pagination */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200">
-          <p className="text-sm text-gray-600">
+        <div className="flex flex-col gap-3 border-t border-slate-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-slate-500">
             Mostrando {startIndex + 1} a {Math.min(endIndex, products.length)} de {products.length}
           </p>
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2">
             <button
-              onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-              disabled={currentPage === 1}
-              className="p-2 hover:bg-gray-100 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              type="button"
+              onClick={() => setCurrentPage(Math.max(1, safePage - 1))}
+              disabled={safePage === 1}
+              className="rounded-lg border border-slate-200 p-2 text-slate-600 hover:bg-slate-50 disabled:opacity-40"
             >
               <ChevronLeft size={18} />
             </button>
             {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
               <button
                 key={page}
+                type="button"
                 onClick={() => setCurrentPage(page)}
-                className={`w-8 h-8 rounded-lg transition-colors font-medium text-sm ${
-                  currentPage === page
+                className={`h-9 w-9 rounded-lg text-sm font-semibold ${
+                  safePage === page
                     ? 'bg-primary-600 text-white'
-                    : 'hover:bg-gray-100 text-gray-700'
+                    : 'border border-slate-200 text-slate-600 hover:bg-slate-50'
                 }`}
               >
                 {page}
               </button>
             ))}
             <button
-              onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-              disabled={currentPage === totalPages}
-              className="p-2 hover:bg-gray-100 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              type="button"
+              onClick={() => setCurrentPage(Math.min(totalPages, safePage + 1))}
+              disabled={safePage === totalPages}
+              className="rounded-lg border border-slate-200 p-2 text-slate-600 hover:bg-slate-50 disabled:opacity-40"
             >
               <ChevronRight size={18} />
             </button>
           </div>
         </div>
       )}
-    </Card>
+    </div>
   );
 };
 

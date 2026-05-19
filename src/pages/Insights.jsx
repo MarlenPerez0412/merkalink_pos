@@ -1,170 +1,286 @@
-import { useState } from 'react';
-import { Card, Button, AlertasVisuales } from '../components';
-import { Zap, TrendingUp, Brain, Lightbulb } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Button, Card } from '../components';
+import {
+  Bot,
+  Brain,
+  Lightbulb,
+  PackageSearch,
+  Send,
+  Sparkles,
+  TrendingUp,
+  Zap,
+} from 'lucide-react';
+import {
+  chatbotConversacionesIniciales,
+  empresaData,
+  preciosSugeridos,
+  prediccionesStock,
+  productosAltaDemanda,
+  recomendacionesIA,
+} from '../data/mockData';
+import { getUniversalBotResponse } from '../utils/chatbotResponses';
 
-const Insights = () => {
-  const [activeTab, setActiveTab] = useState('recomendaciones');
+const insightsChatStorageKey = 'merkalink-insights-chat-messages';
 
-  const recomendaciones = [
-    {
-      id: 1,
-      titulo: 'Aumentar Stock de Produtos Populares',
-      descripcion: 'Los productos "Termo Azul" y "Auriculares" tienen alta demanda. Se recomienda aumentar el stock.',
-      impacto: 'Alto',
-      icon: TrendingUp,
-    },
-    {
-      id: 2,
-      titulo: 'Optimizar Precios',
-      descripcion: 'Análisis de competencia sugiere reducir precio de "Café Premium" en 5% para mejorar competitividad.',
-      impacto: 'Medio',
-      icon: Brain,
-    },
-    {
-      id: 3,
-      titulo: 'Crear Promoción Cross-Sell',
-      descripcion: 'Clientes que compran "Termo" tambíen compran "Botella Reutilizable". Crear pack por 15% de descuento.',
-      impacto: 'Alto',
-      icon: Lightbulb,
-    },
-  ];
+const getInitialChatMessages = () => {
+  try {
+    const stored = window.localStorage.getItem(insightsChatStorageKey);
+    if (stored) return JSON.parse(stored);
+  } catch {
+    return chatbotConversacionesIniciales;
+  }
 
-  const predicciones = [
-    {
-      periodo: 'Próxima Semana',
-      ventasEstimadas: '$48,500',
-      confianza: '92%',
-      tendencia: '↑',
-    },
-    {
-      periodo: 'Próximo Mes',
-      ventasEstimadas: '$195,200',
-      confianza: '87%',
-      tendencia: '↑',
-    },
-    {
-      periodo: 'Próximo Trimestre',
-      ventasEstimadas: '$625,800',
-      confianza: '78%',
-      tendencia: '→',
-    },
-  ];
+  return chatbotConversacionesIniciales;
+};
+
+const MercaBot = () => {
+  const [messages, setMessages] = useState(getInitialChatMessages);
+  const [input, setInput] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
+  const messageListRef = useRef(null);
+  const timeoutRef = useRef(null);
+
+  useEffect(() => {
+    if (!messageListRef.current) return;
+    messageListRef.current.scrollTop = messageListRef.current.scrollHeight;
+  }, [messages, isTyping]);
+
+  useEffect(() => {
+    window.localStorage.setItem(insightsChatStorageKey, JSON.stringify(messages));
+  }, [messages]);
+
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, []);
+
+  const handleSend = () => {
+    const trimmed = input.trim();
+    if (!trimmed || isTyping) return;
+
+    setMessages((current) => [
+      ...current,
+      {
+        id: Date.now(),
+        autor: 'usuario',
+        texto: trimmed,
+      },
+    ]);
+    setInput('');
+    setIsTyping(true);
+
+    timeoutRef.current = setTimeout(() => {
+      setMessages((current) => [
+        ...current,
+        {
+          id: Date.now() + 1,
+          autor: 'ia',
+          texto: getUniversalBotResponse(trimmed),
+        },
+      ]);
+      setIsTyping(false);
+    }, 550);
+  };
+
+  const clearConversation = () => {
+    setMessages(chatbotConversacionesIniciales);
+    setInput('');
+    window.localStorage.removeItem(insightsChatStorageKey);
+  };
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div>
-        <h2 className="text-3xl font-bold text-dark-900 flex items-center gap-2">
-          <Zap className="text-accent-600" size={32} />
-          IA Insights
-        </h2>
-        <p className="text-gray-600 text-sm">Análisis inteligente impulsado por IA</p>
+    <Card className="overflow-hidden" hover={false}>
+      <div className="flex items-center justify-between border-b border-slate-200 bg-slate-950 px-5 py-4 text-white">
+        <div className="flex items-center gap-3">
+          <div className="rounded-lg bg-primary-500/20 p-2 text-primary-100">
+            <Bot size={22} />
+          </div>
+          <div>
+            <h3 className="font-bold">MercaBot AI</h3>
+            <p className="text-xs text-slate-300">Asistente mock para {empresaData.nombre}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="rounded-full bg-green-500/15 px-2.5 py-1 text-xs font-semibold text-green-200 ring-1 ring-green-400/20">
+            Local
+          </span>
+          <button
+            type="button"
+            onClick={clearConversation}
+            className="rounded-lg bg-white/10 px-2.5 py-1 text-xs font-semibold text-white hover:bg-white/15"
+          >
+            Limpiar
+          </button>
+        </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-4 border-b border-gray-200">
-        {['recomendaciones', 'predicciones', 'tendencias'].map(tab => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`px-4 py-3 border-b-2 font-medium transition-colors ${
-              activeTab === tab
-                ? 'border-primary-600 text-primary-600'
-                : 'border-transparent text-gray-600 hover:text-dark-900'
-            }`}
+      <div className="h-[420px] space-y-4 overflow-y-auto bg-slate-50 p-4" ref={messageListRef}>
+        {messages.map((message) => (
+          <div key={message.id} className={`flex ${message.autor === 'usuario' ? 'justify-end' : 'justify-start'}`}>
+            <div
+              className={`max-w-[82%] rounded-lg px-4 py-3 text-sm leading-6 shadow-sm ${
+                message.autor === 'usuario'
+                  ? 'border border-primary-200 bg-primary-50 text-slate-950'
+                  : 'border border-slate-200 bg-white text-slate-700'
+              }`}
+            >
+              {message.texto}
+            </div>
+          </div>
+        ))}
+        {isTyping && (
+          <div className="flex justify-start">
+            <div className="rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-500 shadow-sm">
+              MercaBot está escribiendo...
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="border-t border-slate-200 bg-white p-4">
+        <div className="flex items-center gap-2">
+          <input
+            value={input}
+            onChange={(event) => setInput(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault();
+                handleSend();
+              }
+            }}
+            className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-950 outline-none placeholder:text-slate-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
+            placeholder="Pregunta por stock, ventas, canal, precio..."
+          />
+          <Button
+            type="button"
+            onClick={handleSend}
+            disabled={!input.trim() || isTyping}
+            className="shrink-0 bg-green-600 text-white hover:bg-green-700"
           >
-            {tab.charAt(0).toUpperCase() + tab.slice(1)}
-          </button>
+            <Send size={17} />
+            Enviar
+          </Button>
+        </div>
+      </div>
+    </Card>
+  );
+};
+
+const Insights = () => {
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="flex items-center gap-2 text-2xl font-bold text-slate-950 sm:text-3xl">
+          <Zap className="text-accent-600" size={30} />
+          IA Insights
+        </h2>
+        <p className="mt-1 text-sm text-slate-500">Recomendaciones y simulaciones IA para {empresaData.nombre}.</p>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+        {recomendacionesIA.map((rec) => (
+          <Card key={rec.id} className="p-5" hover={false}>
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div className="rounded-lg bg-primary-50 p-3 text-primary-700">
+                <Lightbulb size={22} />
+              </div>
+              <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                rec.impacto === 'Alto'
+                  ? 'bg-red-50 text-red-700 ring-1 ring-red-200'
+                  : 'bg-yellow-50 text-yellow-700 ring-1 ring-yellow-200'
+              }`}>
+                Impacto {rec.impacto}
+              </span>
+            </div>
+            <h3 className="font-bold text-slate-950">{rec.titulo}</h3>
+            <p className="mt-2 text-sm text-slate-600">{rec.descripcion}</p>
+            <Button className="mt-4" size="sm" variant="outline">{rec.accion}</Button>
+          </Card>
         ))}
       </div>
 
-      {/* Recomendaciones */}
-      {activeTab === 'recomendaciones' && (
-        <div className="space-y-4">
-          {recomendaciones.map(rec => {
-            const Icon = rec.icon;
-            return (
-              <Card key={rec.id} className="p-6 hover:shadow-md-soft">
-                <div className="flex gap-4">
-                  <div className="bg-gradient-to-br from-primary-100 to-accent-100 p-3 rounded-lg h-fit">
-                    <Icon className="text-primary-600" size={24} />
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-start justify-between mb-2">
-                      <h3 className="font-bold text-dark-900">{rec.titulo}</h3>
-                      <span className={`text-xs font-bold px-2 py-1 rounded-full ${
-                        rec.impacto === 'Alto'
-                          ? 'bg-red-100 text-red-800'
-                          : 'bg-yellow-100 text-yellow-800'
-                      }`}>
-                        Impacto {rec.impacto}
-                      </span>
-                    </div>
-                    <p className="text-gray-600 text-sm mb-3">{rec.descripcion}</p>
-                    <Button size="sm" variant="outline">Aplicar Recomendación</Button>
-                  </div>
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+        <Card className="p-5" hover={false}>
+          <div className="mb-4 flex items-center gap-3">
+            <PackageSearch className="text-orange-600" size={22} />
+            <h3 className="text-lg font-bold text-slate-950">Predicción simple de stock</h3>
+          </div>
+          <div className="space-y-3">
+            {prediccionesStock.map((item) => (
+              <div key={item.producto} className="rounded-lg bg-slate-50 p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="font-semibold text-slate-950">{item.producto}</p>
+                  <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                    item.riesgo === 'Crítico' ? 'bg-red-50 text-red-700' : 'bg-yellow-50 text-yellow-700'
+                  }`}>
+                    {item.riesgo}
+                  </span>
                 </div>
-              </Card>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Predicciones */}
-      {activeTab === 'predicciones' && (
-        <div className="space-y-4">
-          {predicciones.map((pred, idx) => (
-            <Card key={idx} className="p-6">
-              <div className="flex items-center justify-between">
-                <div className="flex-1">
-                  <h3 className="font-bold text-dark-900 mb-2">{pred.periodo}</h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-xs text-gray-600 mb-1">Ventas Estimadas</p>
-                      <p className="text-2xl font-bold text-dark-900">{pred.ventasEstimadas}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-600 mb-1">Confianza de Predicción</p>
-                      <p className="text-2xl font-bold text-primary-600">{pred.confianza}</p>
-                    </div>
-                  </div>
-                </div>
-                <div className="text-center">
-                  <p className="text-3xl font-bold text-green-600">{pred.tendencia}</p>
-                  <p className="text-xs text-gray-600 mt-2">Tendencia</p>
-                </div>
+                <p className="mt-1 text-sm text-slate-500">Stock {item.stockActual} · Agotamiento estimado: {item.estimadoAgotamiento}</p>
               </div>
-            </Card>
-          ))}
-        </div>
-      )}
-
-      {/* Tendencias */}
-      {activeTab === 'tendencias' && (
-        <Card className="p-6">
-          <h3 className="text-lg font-bold text-dark-900 mb-4">Análisis de Tendencias</h3>
-          <AlertasVisuales
-            type="info"
-            title="Análisis en Tiempo Real"
-            message="Se están procesando millones de datos para generar insights personalizados. Este análisis se actualiza cada hora."
-            closeable={false}
-          />
-          <div className="mt-6 space-y-4">
-            <div className="p-4 bg-gradient-to-r from-primary-50 to-blue-50 rounded-lg border border-primary-200">
-              <p className="font-semibold text-dark-900 mb-2">📈 Categoría Hogar en Crecimiento</p>
-              <p className="text-sm text-gray-700">Crecimiento del 23% en últimas 2 semanas</p>
-            </div>
-            <div className="p-4 bg-gradient-to-r from-accent-50 to-purple-50 rounded-lg border border-accent-200">
-              <p className="font-semibold text-dark-900 mb-2">🛍️ Compras Agrupadas Detectadas</p>
-              <p className="text-sm text-gray-700">Los clientes compran múltiples productos en una sola orden 38% más frecuentemente</p>
-            </div>
-            <div className="p-4 bg-gradient-to-r from-orange-50 to-red-50 rounded-lg border border-orange-200">
-              <p className="font-semibold text-dark-900 mb-2">⏰ Horario Peak</p>
-              <p className="text-sm text-gray-700">Las compras se concentran entre 8PM - 11PM. Mejor momento para campañas</p>
-            </div>
+            ))}
           </div>
         </Card>
-      )}
+
+        <Card className="p-5" hover={false}>
+          <div className="mb-4 flex items-center gap-3">
+            <Brain className="text-violet-600" size={22} />
+            <h3 className="text-lg font-bold text-slate-950">Precio sugerido simulado</h3>
+          </div>
+          <div className="space-y-3">
+            {preciosSugeridos.map((item) => (
+              <div key={item.producto} className="rounded-lg bg-slate-50 p-3">
+                <p className="font-semibold text-slate-950">{item.producto}</p>
+                <div className="mt-2 flex items-center justify-between text-sm">
+                  <span className="text-slate-500">${item.precioActual}</span>
+                  <span className="font-bold text-primary-700">${item.precioSugerido}</span>
+                </div>
+                <p className="mt-1 text-xs text-slate-500">{item.motivo}</p>
+              </div>
+            ))}
+          </div>
+        </Card>
+
+        <Card className="p-5" hover={false}>
+          <div className="mb-4 flex items-center gap-3">
+            <TrendingUp className="text-green-600" size={22} />
+            <h3 className="text-lg font-bold text-slate-950">Productos con mayor demanda</h3>
+          </div>
+          <div className="space-y-3">
+            {productosAltaDemanda.map((item, index) => (
+              <div key={item.producto} className="flex items-center justify-between rounded-lg bg-slate-50 p-3">
+                <div className="flex items-center gap-3">
+                  <span className="grid h-8 w-8 place-items-center rounded-lg bg-primary-50 text-sm font-bold text-primary-700">
+                    {index + 1}
+                  </span>
+                  <div>
+                    <p className="font-semibold text-slate-950">{item.producto}</p>
+                    <p className="text-xs text-slate-500">{item.canal}</p>
+                  </div>
+                </div>
+                <span className="font-bold text-slate-950">{item.ventas}</span>
+              </div>
+            ))}
+          </div>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1fr_1.35fr]">
+        <Card className="p-5" hover={false}>
+          <div className="flex items-center gap-3">
+            <Sparkles className="text-primary-700" size={22} />
+            <h3 className="text-lg font-bold text-slate-950">Resumen IA del piloto</h3>
+          </div>
+          <div className="mt-4 space-y-3 text-sm leading-6 text-slate-600">
+            <p>WhatsApp y tienda física concentran la actividad más fuerte de PPC SOLUCIONES.</p>
+            <p>El inventario crítico está en accesorios de alta rotación: cargadores, micas y cables.</p>
+            <p>La primera etapa debe priorizar reabastecimiento, rapidez de atención y precios sugeridos para productos de alta demanda.</p>
+          </div>
+        </Card>
+
+        <MercaBot />
+      </div>
     </div>
   );
 };

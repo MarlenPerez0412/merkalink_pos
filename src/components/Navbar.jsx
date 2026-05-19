@@ -1,105 +1,127 @@
 import { useState } from 'react';
-import { Bell, User, Settings, LogOut, MessageSquare } from 'lucide-react';
+import { Bell, LogOut, MessageSquare, Search, Settings, User } from 'lucide-react';
+import { alertasData, empresaData } from '../data/mockData';
 
-const Navbar = ({ title = 'Dashboard' }) => {
+const Navbar = ({ title = 'Dashboard', isSidebarCollapsed = false }) => {
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUser, setShowUser] = useState(false);
-
-  const notifications = [
-    { id: 1, message: 'Bajo stock de Termo Rosa', type: 'warning' },
-    { id: 2, message: 'Nueva orden recibida', type: 'success' },
-    { id: 3, message: 'Sistema actualizado', type: 'info' },
-  ];
+  const notifications = alertasData.slice(0, 3);
 
   return (
-    <nav className="fixed top-0 right-0 left-0 lg:left-64 bg-white border-b border-gray-100 shadow-soft z-30">
-      <div className="flex items-center justify-between px-6 py-4">
-        {/* Title */}
-        <div>
-          <h1 className="text-2xl font-bold text-dark-900">{title}</h1>
-          <p className="text-sm text-gray-500">Bienvenido a MercaLink AI</p>
+    <nav
+      className={`fixed right-0 top-0 z-30 border-b border-slate-200 bg-white/90 backdrop-blur transition-all duration-300 ${
+        isSidebarCollapsed ? 'lg:left-20' : 'lg:left-64'
+      } left-0`}
+    >
+      <div className="flex h-20 items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
+        <div className="min-w-0 pl-12 lg:pl-0">
+          <h1 className="truncate text-xl font-bold text-slate-950 sm:text-2xl">{empresaData.nombre}</h1>
+          <p className="hidden text-sm text-slate-500 sm:block">
+            {empresaData.implementacion} · {title}
+          </p>
         </div>
 
-        {/* Right Items */}
-        <div className="flex items-center gap-4">
-          {/* Notifications */}
+        <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+          <div className="hidden w-64 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-500 md:flex">
+            <Search size={18} />
+            <input
+              aria-label="Buscar"
+              className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400"
+              placeholder="Buscar productos, órdenes..."
+            />
+          </div>
+
           <div className="relative">
             <button
-              onClick={() => setShowNotifications(!showNotifications)}
-              className="relative p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              type="button"
+              aria-label="Notificaciones"
+              onClick={() => setShowNotifications((value) => !value)}
+              className="relative rounded-lg p-2 text-slate-600 hover:bg-slate-100 hover:text-slate-950"
             >
               <Bell size={20} />
-              <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
+              <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-red-500 ring-2 ring-white" />
             </button>
 
-            {/* Notifications Dropdown */}
             {showNotifications && (
-              <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-lg-soft border border-gray-100 overflow-hidden">
-                <div className="p-4 border-b border-gray-100">
-                  <h3 className="font-semibold text-dark-900">Notificaciones</h3>
+              <div className="absolute right-0 mt-3 w-80 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-xl">
+                <div className="border-b border-slate-100 px-4 py-3">
+                  <p className="font-semibold text-slate-950">Alertas PPC SOLUCIONES</p>
                 </div>
-                <div className="max-h-96 overflow-y-auto">
-                  {notifications.map((notif) => (
-                    <div
-                      key={notif.id}
-                      className="px-4 py-3 border-b border-gray-50 hover:bg-gray-50 cursor-pointer transition-colors"
-                    >
-                      <div className="flex items-start gap-3">
-                        <div
-                          className={`w-2 h-2 rounded-full mt-1.5 ${
-                            notif.type === 'warning'
-                              ? 'bg-yellow-500'
-                              : notif.type === 'success'
+                {notifications.map((notification) => (
+                  <button
+                    key={notification.id}
+                    type="button"
+                    className="flex w-full items-start gap-3 border-b border-slate-100 px-4 py-3 text-left last:border-0 hover:bg-slate-50"
+                  >
+                    <span
+                      className={`mt-1.5 h-2 w-2 flex-shrink-0 rounded-full ${
+                        notification.tipo === 'error'
+                          ? 'bg-red-500'
+                          : notification.tipo === 'warning'
+                            ? 'bg-yellow-500'
+                            : notification.tipo === 'success'
                               ? 'bg-green-500'
                               : 'bg-blue-500'
-                          }`}
-                        />
-                        <p className="text-sm text-gray-700">{notif.message}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                      }`}
+                    />
+                    <span className="min-w-0">
+                      <span className="block text-sm font-medium text-slate-800">{notification.titulo}</span>
+                      <span className="block text-xs text-slate-500">{notification.timestamp}</span>
+                    </span>
+                  </button>
+                ))}
               </div>
             )}
           </div>
 
-          {/* Messages */}
-          <button className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
+          <button
+            type="button"
+            aria-label="Mensajes"
+            className="hidden rounded-lg p-2 text-slate-600 hover:bg-slate-100 hover:text-slate-950 sm:inline-flex"
+          >
             <MessageSquare size={20} />
           </button>
 
-          {/* User Menu */}
           <div className="relative">
             <button
-              onClick={() => setShowUser(!showUser)}
-              className="flex items-center gap-3 p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              type="button"
+              onClick={() => setShowUser((value) => !value)}
+              className="flex items-center gap-2 rounded-lg p-1.5 hover:bg-slate-100"
             >
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary-500 to-accent-500" />
-              <span className="text-sm font-medium text-dark-900 hidden sm:block">
-                Admin
-              </span>
+              <div className="grid h-9 w-9 place-items-center rounded-lg bg-slate-950 text-sm font-semibold text-white">
+                PPC
+              </div>
+              <span className="hidden text-sm font-semibold text-slate-800 sm:block">Piloto</span>
             </button>
 
-            {/* User Dropdown */}
             {showUser && (
-              <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg-soft border border-gray-100 overflow-hidden">
-                <div className="p-4 border-b border-gray-100">
-                  <p className="text-sm font-semibold text-dark-900">Administrador</p>
-                  <p className="text-xs text-gray-500">admin@merkalink.ai</p>
+              <div className="absolute right-0 mt-3 w-64 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-xl">
+                <div className="border-b border-slate-100 px-4 py-3">
+                  <p className="text-sm font-semibold text-slate-950">{empresaData.nombre}</p>
+                  <p className="text-xs text-slate-500">{empresaData.correo}</p>
                 </div>
-                <div className="p-2 space-y-1">
-                  <button className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
-                    <User size={16} />
-                    Mi Perfil
-                  </button>
-                  <button className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
-                    <Settings size={16} />
-                    Configuración
-                  </button>
-                  <button className="w-full flex items-center gap-3 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors">
-                    <LogOut size={16} />
-                    Cerrar Sesión
-                  </button>
+                <div className="p-2">
+                  {[
+                    { icon: User, label: 'Perfil empresarial' },
+                    { icon: Settings, label: 'Configuración' },
+                    { icon: LogOut, label: 'Cerrar sesión mock', danger: true },
+                  ].map((item) => {
+                    const Icon = item.icon;
+                    return (
+                      <button
+                        key={item.label}
+                        type="button"
+                        className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${
+                          item.danger
+                            ? 'text-red-600 hover:bg-red-50'
+                            : 'text-slate-700 hover:bg-slate-100'
+                        }`}
+                      >
+                        <Icon size={16} />
+                        {item.label}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}

@@ -1,10 +1,12 @@
 import { useState } from 'react';
-import { Card, BarChart, LineChart, defaultChartOptions } from '../components';
-import { TrendingUp, TrendingDown } from 'lucide-react';
-import { ventasChartData, canalesChartData, ventasData } from '../data/mockData';
+import { BarChart, Card, LineChart, defaultChartOptions } from '../components';
+import { canalesChartData, empresaData, ventasChartData, ventasData } from '../data/mockData';
+import { CreditCard, TrendingDown, TrendingUp } from 'lucide-react';
 
 const Ventas = () => {
-  const [periodo, setPeriodo] = useState('semana');
+  const [periodo, setPeriodo] = useState('Semana');
+  const totalVentas = ventasData.reduce((sum, venta) => sum + venta.monto, 0);
+  const ventasCompletadas = ventasData.filter((venta) => venta.estado === 'completada').length;
 
   const chartOptions = {
     ...defaultChartOptions,
@@ -17,140 +19,101 @@ const Ventas = () => {
     },
   };
 
-  const totalVentas = ventasData.reduce((sum, v) => sum + v.monto, 0);
-  const ventasCompletadas = ventasData.filter(v => v.estado === 'completada').length;
-
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div className="space-y-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-3xl font-bold text-dark-900">Ventas</h2>
-          <p className="text-gray-600 text-sm">Análisis de tus ventas</p>
+          <h2 className="text-2xl font-bold text-slate-950 sm:text-3xl">Ventas</h2>
+          <p className="mt-1 text-sm text-slate-500">Ingresos, órdenes y canales de {empresaData.nombre}.</p>
         </div>
-        <div className="flex gap-2">
-          {['día', 'semana', 'mes'].map(p => (
+        <div className="inline-flex rounded-lg bg-slate-100 p-1">
+          {['Día', 'Semana', 'Mes'].map((item) => (
             <button
-              key={p}
-              onClick={() => setPeriodo(p)}
-              className={`px-4 py-2 rounded-lg font-medium text-sm transition-all ${
-                periodo === p
-                  ? 'bg-primary-600 text-white'
-                  : 'bg-gray-100 text-gray-700'
+              key={item}
+              type="button"
+              onClick={() => setPeriodo(item)}
+              className={`rounded-md px-4 py-2 text-sm font-semibold transition-colors ${
+                periodo === item ? 'bg-white text-primary-700 shadow-sm' : 'text-slate-600 hover:text-slate-950'
               }`}
             >
-              {p.charAt(0).toUpperCase() + p.slice(1)}
+              {item}
             </button>
           ))}
         </div>
       </div>
 
-      {/* KPIs */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="p-6">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-sm text-gray-600 font-medium">Total Ventas</p>
-              <p className="text-3xl font-bold text-dark-900 mt-2">${totalVentas.toFixed(2)}</p>
-            </div>
-            <div className="bg-green-100 p-3 rounded-lg">
-              <TrendingUp className="text-green-600" size={24} />
-            </div>
-          </div>
-          <div className="flex items-center gap-1 mt-4 text-sm">
-            <span className="text-green-600 font-medium">↑ 12.5%</span>
-            <span className="text-gray-500">vs período anterior</span>
-          </div>
-        </Card>
-
-        <Card className="p-6">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-sm text-gray-600 font-medium">Órdenes Completadas</p>
-              <p className="text-3xl font-bold text-dark-900 mt-2">{ventasCompletadas}</p>
-            </div>
-            <div className="bg-blue-100 p-3 rounded-lg">
-              <TrendingUp className="text-blue-600" size={24} />
-            </div>
-          </div>
-          <div className="flex items-center gap-1 mt-4 text-sm">
-            <span className="text-blue-600 font-medium">{((ventasCompletadas / ventasData.length) * 100).toFixed(1)}%</span>
-            <span className="text-gray-500">del total</span>
-          </div>
-        </Card>
-
-        <Card className="p-6">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-sm text-gray-600 font-medium">Promedio por Orden</p>
-              <p className="text-3xl font-bold text-dark-900 mt-2">
-                ${(totalVentas / ventasData.length).toFixed(0)}
-              </p>
-            </div>
-            <div className="bg-purple-100 p-3 rounded-lg">
-              <TrendingDown className="text-purple-600" size={24} />
-            </div>
-          </div>
-          <div className="flex items-center gap-1 mt-4 text-sm">
-            <span className="text-purple-600 font-medium">↓ 3.2%</span>
-            <span className="text-gray-500">vs período anterior</span>
-          </div>
-        </Card>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        {[
+          { label: 'Total ventas', value: `$${totalVentas.toLocaleString()}`, detail: 'WhatsApp y tienda física lideran', icon: TrendingUp, iconClass: 'bg-green-50 text-green-700' },
+          { label: 'Órdenes completadas', value: ventasCompletadas, detail: `${((ventasCompletadas / ventasData.length) * 100).toFixed(1)}% del total`, icon: CreditCard, iconClass: 'bg-blue-50 text-blue-700' },
+          { label: 'Promedio por orden', value: `$${(totalVentas / ventasData.length).toFixed(0)}`, detail: 'Datos mock del piloto', icon: TrendingDown, iconClass: 'bg-violet-50 text-violet-700' },
+        ].map((item) => {
+          const Icon = item.icon;
+          return (
+            <Card key={item.label} className="p-5" hover={false}>
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-sm font-medium text-slate-500">{item.label}</p>
+                  <p className="mt-2 text-3xl font-bold text-slate-950">{item.value}</p>
+                </div>
+                <div className={`rounded-lg p-3 ${item.iconClass}`}>
+                  <Icon size={22} />
+                </div>
+              </div>
+              <p className="mt-4 text-sm text-slate-500">{item.detail}</p>
+            </Card>
+          );
+        })}
       </div>
 
-      {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Ventas Semanales */}
-        <Card className="p-6">
-          <div className="mb-4">
-            <h3 className="text-lg font-bold text-dark-900">Ventas por Día</h3>
-            <p className="text-sm text-gray-600">Últimos 7 días</p>
-          </div>
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+        <Card className="p-5" hover={false}>
+          <h3 className="text-lg font-bold text-slate-950">Ventas por día</h3>
+          <p className="mb-5 text-sm text-slate-500">Últimos 7 días.</p>
           <div className="h-80">
             <LineChart data={ventasChartData} options={chartOptions} />
           </div>
         </Card>
 
-        {/* Ventas por Canal */}
-        <Card className="p-6">
-          <div className="mb-4">
-            <h3 className="text-lg font-bold text-dark-900">Ventas por Canal</h3>
-            <p className="text-sm text-gray-600">Distribución de ventas</p>
-          </div>
+        <Card className="p-5" hover={false}>
+          <h3 className="text-lg font-bold text-slate-950">Ventas por canal</h3>
+          <p className="mb-5 text-sm text-slate-500">WhatsApp, tienda física, Instagram y Facebook.</p>
           <div className="h-80">
             <BarChart data={canalesChartData} options={chartOptions} />
           </div>
         </Card>
       </div>
 
-      {/* Órdenes Recientes */}
-      <Card className="p-6">
-        <h3 className="text-lg font-bold text-dark-900 mb-4">Órdenes Recientes</h3>
+      <Card className="overflow-hidden" hover={false}>
+        <div className="border-b border-slate-200 px-5 py-4">
+          <h3 className="text-lg font-bold text-slate-950">Órdenes recientes</h3>
+        </div>
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full min-w-[760px]">
             <thead>
-              <tr className="border-b border-gray-200">
-                <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">ID Orden</th>
-                <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Producto</th>
-                <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">Cantidad</th>
-                <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">Monto</th>
-                <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Estado</th>
+              <tr className="border-b border-slate-200 bg-slate-50">
+                {['Orden', 'Cliente', 'Producto', 'Canal', 'Monto', 'Estado'].map((heading) => (
+                  <th key={heading} className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    {heading}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
-              {ventasData.map(venta => (
-                <tr key={venta.id} className="border-b border-gray-100 hover:bg-gray-50">
-                  <td className="py-3 px-4 text-sm text-dark-900 font-medium">#{venta.id}</td>
-                  <td className="py-3 px-4 text-sm text-dark-900">{venta.producto}</td>
-                  <td className="py-3 px-4 text-sm text-right text-dark-900">{venta.cantidad}</td>
-                  <td className="py-3 px-4 text-sm text-right text-dark-900 font-medium">${venta.monto}</td>
-                  <td className="py-3 px-4 text-sm">
-                    <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${
+              {ventasData.map((venta) => (
+                <tr key={venta.id} className="border-b border-slate-100 hover:bg-slate-50/70">
+                  <td className="px-5 py-4 text-sm font-semibold text-slate-950">#{venta.id}</td>
+                  <td className="px-5 py-4 text-sm text-slate-600">{venta.cliente}</td>
+                  <td className="px-5 py-4 text-sm text-slate-600">{venta.producto}</td>
+                  <td className="px-5 py-4 text-sm text-slate-600">{venta.canal}</td>
+                  <td className="px-5 py-4 text-sm font-semibold text-slate-950">${venta.monto}</td>
+                  <td className="px-5 py-4">
+                    <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
                       venta.estado === 'completada'
-                        ? 'bg-green-100 text-green-800'
-                        : 'bg-yellow-100 text-yellow-800'
+                        ? 'bg-green-50 text-green-700 ring-1 ring-green-200'
+                        : 'bg-yellow-50 text-yellow-700 ring-1 ring-yellow-200'
                     }`}>
-                      {venta.estado.charAt(0).toUpperCase() + venta.estado.slice(1)}
+                      {venta.estado}
                     </span>
                   </td>
                 </tr>

@@ -55,6 +55,10 @@ export default {
           800: '#1f2937',
           900: '#111827',
         },
+        merka: {
+          dark: '#111827',
+          purple: '#9333ea',
+        },
       },
       boxShadow: {
         'soft': '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)',
