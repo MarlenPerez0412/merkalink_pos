@@ -1,324 +1,717 @@
-import { useMemo, useState } from 'react';
-import { AlertasVisuales, Button, Card, TableProductos } from '../components';
-import { Download, Filter, Plus, Search } from 'lucide-react';
-import { productosData } from '../data/mockData';
+/* eslint-disable react-hooks/set-state-in-effect */
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import {
+  Download,
+  Edit,
+  Filter,
+  Plus,
+  Search,
+  Trash2,
+  TriangleAlert,
+  X,
+} from 'lucide-react';
 
-const emptyProductForm = {
+import {
+  createProducto,
+  deleteProducto,
+  getProductos,
+  updateProducto,
+} from '../services/api/productosApi';
+
+const categoriasBase = [
+  'Accesorios',
+  'Cómputo',
+  'Servicios',
+  'Impresoras',
+  'Refacciones',
+  'Componentes',
+  'Cargadores',
+  'Fundas',
+  'Micas',
+  'Audífonos',
+  'Cables',
+];
+
+const productoInicial = {
   sku: '',
   nombre: '',
   categoria: 'Accesorios',
-  canal: 'WhatsApp',
   precio: '',
   stock: '',
   demanda: 'Media',
 };
 
-const baseCategories = ['Accesorios', 'Cómputo', 'Servicios', 'Impresoras'];
-const canales = ['WhatsApp', 'Facebook', 'Instagram', 'Tienda física'];
-const demandas = ['Alta', 'Media', 'Baja'];
+const formatearMoneda = (valor) =>
+  new Intl.NumberFormat('es-MX', {
+    style: 'currency',
+    currency: 'MXN',
+  }).format(Number(valor || 0));
+
+const calcularEstado = (stock) => {
+  const stockNumero = Number(stock);
+
+  if (stockNumero < 5) return 'Stock crítico';
+  if (stockNumero < 10) return 'Riesgo de agotamiento';
+
+  return 'Activo';
+};
+
+const calcularPrecioSugerido = (precio, demanda) => {
+  const precioNumero = Number(precio || 0);
+
+  if (demanda === 'Alta') return Math.round(precioNumero * 1.12);
+  if (demanda === 'Media') return Math.round(precioNumero * 1.05);
+
+  return precioNumero;
+};
+
+const normalizarProducto = (producto) => ({
+  id: producto.id,
+  sku: producto.sku || '',
+  nombre: producto.nombre || '',
+  categoria: producto.categoria || producto.categoria_nombre || 'Sin categoría',
+  precio: Number(producto.precio || 0),
+  stock: Number(producto.stock || 0),
+  demanda: producto.demanda || 'Media',
+  estado: producto.estado || 'Activo',
+  precioSugerido: producto.precioSugerido || producto.precio_sugerido || null,
+  promedioVentasDiarias:
+    producto.promedioVentasDiarias || producto.promedio_ventas_diarias || 0,
+});
 
 const Inventario = () => {
-  const [productos, setProductos] = useState(productosData);
-  const [showAlert, setShowAlert] = useState(true);
-  const [filtro, setFiltro] = useState('Todos');
-  const [query, setQuery] = useState('');
-  const [showForm, setShowForm] = useState(false);
-  const [editingProduct, setEditingProduct] = useState(null);
-  const [formData, setFormData] = useState(emptyProductForm);
+  const [searchParams] = useSearchParams();
 
-  const categories = useMemo(
-    () => ['Todos', ...new Set([...baseCategories, ...productos.map((producto) => producto.categoria)])],
-    [productos],
-  );
+  const [productos, setProductos] = useState([]);
+  const [formProducto, setFormProducto] = useState(productoInicial);
+  const [productoEditando, setProductoEditando] = useState(null);
 
-  const filteredProducts = useMemo(() => {
-    return productos.filter((producto) => {
-      const matchesCategory = filtro === 'Todos' || producto.categoria === filtro;
-      const matchesQuery = `${producto.nombre} ${producto.sku} ${producto.canal}`
-        .toLowerCase()
-        .includes(query.toLowerCase());
-      return matchesCategory && matchesQuery;
+  const [categoriaActiva, setCategoriaActiva] = useState('Todos');
+  const [busqueda, setBusqueda] = useState(searchParams.get('buscar') || '');
+  const [mostrarFormulario, setMostrarFormulario] = useState(false);
+
+  const [loading, setLoading] = useState(true);
+  const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState('');
+
+  const cargarProductos = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError('');
+
+      const data = await getProductos();
+      const lista = Array.isArray(data) ? data : data?.productos || [];
+
+      setProductos(lista.map(normalizarProducto));
+    } catch (err) {
+      setError(err.message || 'No se pudieron cargar los productos.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    cargarProductos();
+  }, [cargarProductos]);
+
+  useEffect(() => {
+    const busquedaUrl = searchParams.get('buscar') || '';
+
+    if (busquedaUrl) {
+      setBusqueda(busquedaUrl);
+    }
+  }, [searchParams]);
+
+  const productosActivos = useMemo(() => {
+    return productos.filter((producto) => producto.estado !== 'Inactivo');
+  }, [productos]);
+
+  const categorias = useMemo(() => {
+    const categoriasDinamicas = productosActivos
+      .map((producto) => producto.categoria)
+      .filter(Boolean);
+
+    return ['Todos', ...new Set([...categoriasBase, ...categoriasDinamicas])];
+  }, [productosActivos]);
+
+  const productosFiltrados = useMemo(() => {
+    const texto = busqueda.trim().toLowerCase();
+
+    return productosActivos.filter((producto) => {
+      const coincideCategoria =
+        categoriaActiva === 'Todos' || producto.categoria === categoriaActiva;
+
+      const coincideBusqueda =
+        texto === '' ||
+        String(producto.nombre || '').toLowerCase().includes(texto);
+
+      return coincideCategoria && coincideBusqueda;
     });
-  }, [productos, filtro, query]);
+  }, [productosActivos, categoriaActiva, busqueda]);
 
-  const resetForm = () => {
-    setFormData(emptyProductForm);
-    setEditingProduct(null);
-    setShowForm(false);
+  const productosBajoStock = useMemo(() => {
+    return productosActivos.filter(
+      (producto) => producto.stock > 0 && producto.stock <= 5,
+    );
+  }, [productosActivos]);
+
+  const productosAgotados = useMemo(() => {
+    return productosActivos.filter((producto) => producto.stock <= 0);
+  }, [productosActivos]);
+
+  const stockTotal = useMemo(() => {
+    return productosActivos.reduce(
+      (total, producto) => total + Number(producto.stock || 0),
+      0,
+    );
+  }, [productosActivos]);
+
+  const alertaStock = useMemo(() => {
+    const productosCriticos = [...productosBajoStock, ...productosAgotados];
+
+    if (productosCriticos.length === 0) return '';
+
+    return productosCriticos
+      .slice(0, 5)
+      .map((producto) => producto.nombre)
+      .join(', ');
+  }, [productosBajoStock, productosAgotados]);
+
+  const limpiarFormulario = () => {
+    setFormProducto(productoInicial);
+    setProductoEditando(null);
+    setMostrarFormulario(false);
   };
 
-  const handleNewProduct = () => {
-    setFormData(emptyProductForm);
-    setEditingProduct(null);
-    setShowForm(true);
-  };
+  const handleChange = (event) => {
+    const { name, value } = event.target;
 
-  const handleEditProduct = (product) => {
-    setEditingProduct(product);
-    setFormData({
-      sku: product.sku,
-      nombre: product.nombre,
-      categoria: product.categoria,
-      canal: product.canal,
-      precio: String(product.precio),
-      stock: String(product.stock),
-      demanda: product.demanda || 'Media',
-    });
-    setShowForm(true);
-  };
-
-  const handleDeleteProduct = (product) => {
-    const shouldDelete = window.confirm(`¿Eliminar ${product.nombre} del inventario local?`);
-    if (!shouldDelete) return;
-
-    // Futuro backend: reemplazar este setState por una llamada DELETE /productos/:id.
-    setProductos((current) => current.filter((item) => item.id !== product.id));
-    if (editingProduct?.id === product.id) resetForm();
-  };
-
-  const handleFieldChange = (field, value) => {
-    setFormData((current) => ({
-      ...current,
-      [field]: value,
+    setFormProducto((prev) => ({
+      ...prev,
+      [name]: value,
     }));
   };
 
-  const handleSubmit = (event) => {
+  const handleNuevoProducto = () => {
+    setProductoEditando(null);
+    setFormProducto({
+      ...productoInicial,
+      sku: `PPC-NEW-${String(productos.length + 1).padStart(3, '0')}`,
+    });
+    setMostrarFormulario(true);
+  };
+
+  const handleEditar = (producto) => {
+    setProductoEditando(producto);
+
+    setFormProducto({
+      sku: producto.sku,
+      nombre: producto.nombre,
+      categoria: producto.categoria,
+      precio: String(producto.precio),
+      stock: String(producto.stock),
+      demanda: producto.demanda,
+    });
+
+    setMostrarFormulario(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleGuardar = async (event) => {
     event.preventDefault();
 
-    const nombre = formData.nombre.trim();
-    const sku = formData.sku.trim();
-    const precio = Number(formData.precio);
-    const stock = Number(formData.stock);
+    const sku = formProducto.sku.trim();
+    const nombre = formProducto.nombre.trim();
+    const precio = Number(formProducto.precio);
+    const stock = Number(formProducto.stock);
 
-    if (!nombre || !sku || Number.isNaN(precio) || Number.isNaN(stock)) return;
-
-    const payload = {
-      sku,
-      nombre,
-      categoria: formData.categoria,
-      canal: formData.canal,
-      precio,
-      stock,
-      demanda: formData.demanda,
-      precioSugerido: Math.round(precio * (formData.demanda === 'Alta' ? 1.12 : 1.05)),
-    };
-
-    if (editingProduct) {
-      // Futuro backend: reemplazar este setState por PUT/PATCH /productos/:id.
-      setProductos((current) =>
-        current.map((product) =>
-          product.id === editingProduct.id
-            ? { ...product, ...payload }
-            : product,
-        ),
-      );
-    } else {
-      const nextId = Math.max(0, ...productos.map((product) => product.id)) + 1;
-      // Futuro backend: reemplazar este setState por POST /productos.
-      setProductos((current) => [
-        {
-          id: nextId,
-          ...payload,
-        },
-        ...current,
-      ]);
+    if (!sku) {
+      setError('El SKU es obligatorio.');
+      return;
     }
 
-    resetForm();
+    if (!nombre) {
+      setError('El nombre del producto es obligatorio.');
+      return;
+    }
+
+    if (Number.isNaN(precio) || precio < 0) {
+      setError('El precio debe ser un número válido.');
+      return;
+    }
+
+    if (Number.isNaN(stock) || stock < 0) {
+      setError('El stock debe ser un número válido.');
+      return;
+    }
+
+    const productoEnviar = {
+      sku,
+      nombre,
+      categoria: formProducto.categoria,
+      precio,
+      stock,
+      demanda: formProducto.demanda,
+      precioSugerido: calcularPrecioSugerido(precio, formProducto.demanda),
+      promedioVentasDiarias: productoEditando?.promedioVentasDiarias || 0,
+      estado: calcularEstado(stock),
+    };
+
+    try {
+      setGuardando(true);
+      setError('');
+
+      if (productoEditando) {
+        await updateProducto(productoEditando.id, productoEnviar);
+      } else {
+        await createProducto(productoEnviar);
+      }
+
+      limpiarFormulario();
+      await cargarProductos();
+    } catch (err) {
+      setError(err.message || 'No se pudo guardar el producto.');
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  const handleEliminar = async (producto) => {
+    const confirmar = window.confirm(
+      `¿Seguro que deseas eliminar el producto "${producto.nombre}"?`,
+    );
+
+    if (!confirmar) return;
+
+    try {
+      setError('');
+      await deleteProducto(producto.id);
+      await cargarProductos();
+    } catch (err) {
+      setError(err.message || 'No se pudo eliminar el producto.');
+    }
+  };
+
+  const handleExportar = () => {
+    const encabezados = [
+      'SKU',
+      'Producto',
+      'Categoría',
+      'Precio',
+      'Stock',
+      'Demanda',
+      'Estado',
+    ];
+
+    const filas = productosFiltrados.map((producto) => [
+      producto.sku,
+      producto.nombre,
+      producto.categoria,
+      producto.precio,
+      producto.stock,
+      producto.demanda,
+      producto.estado,
+    ]);
+
+    const contenido = [encabezados, ...filas]
+      .map((fila) => fila.map((valor) => `"${valor ?? ''}"`).join(','))
+      .join('\n');
+
+    const blob = new Blob([contenido], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'inventario-mercalink-ai.csv';
+    link.click();
+
+    URL.revokeObjectURL(url);
+  };
+
+  const limpiarBusqueda = () => {
+    setBusqueda('');
   };
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <section className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-slate-950 sm:text-3xl">Inventario</h2>
-          <p className="mt-1 text-sm text-slate-500">Control de stock y productos de PPC SOLUCIONES.</p>
+          <h1 className="text-3xl font-bold text-slate-950">Inventario</h1>
+          <p className="mt-1 text-slate-500">
+            Control de stock y productos de PPC SOLUCIONES.
+          </p>
         </div>
+
         <div className="flex flex-wrap gap-3">
-          <Button variant="outline" size="md">
+          <button
+            type="button"
+            onClick={handleExportar}
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-3 font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"
+          >
             <Download size={18} />
             Exportar
-          </Button>
-          <Button
-            size="md"
-            onClick={handleNewProduct}
-            className="bg-white text-slate-950 ring-1 ring-slate-300 hover:bg-slate-50 hover:text-slate-950 hover:shadow-sm"
+          </button>
+
+          <button
+            type="button"
+            onClick={handleNuevoProducto}
+            className="inline-flex items-center gap-2 rounded-lg bg-slate-950 px-5 py-3 font-medium text-white shadow-sm transition hover:bg-slate-800"
           >
             <Plus size={18} />
             Nuevo producto
-          </Button>
+          </button>
         </div>
-      </div>
+      </section>
 
-      {showAlert && (
-        <AlertasVisuales
-          type="warning"
-          title="Alerta de stock"
-          message="Cargador USB-C, Mica templada y Cable Lightning están en nivel crítico para PPC SOLUCIONES."
-          onClose={() => setShowAlert(false)}
-        />
+      {error && (
+        <div className="flex items-center justify-between rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-700">
+          <span>{error}</span>
+          <button type="button" onClick={() => setError('')}>
+            <X size={18} />
+          </button>
+        </div>
       )}
 
-      {showForm && (
-        <Card className="p-5" hover={false}>
-          <div className="mb-4">
-            <h3 className="text-lg font-bold text-slate-950">
-              {editingProduct ? 'Editar producto' : 'Agregar producto'}
-            </h3>
-            <p className="text-sm text-slate-500">
-              Los cambios se guardan localmente. La estructura queda lista para conectar una API en el futuro.
+      {alertaStock && (
+        <div className="flex items-start gap-4 rounded-lg border border-yellow-300 bg-yellow-50 px-5 py-4 text-yellow-800">
+          <TriangleAlert className="mt-1 flex-shrink-0" size={22} />
+
+          <div>
+            <h3 className="font-bold">Alerta de stock</h3>
+            <p className="mt-1">
+              {alertaStock} están en nivel crítico para PPC SOLUCIONES.
             </p>
           </div>
-          <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <label className="space-y-2">
-              <span className="text-sm font-medium text-slate-700">SKU</span>
-              <input
-                value={formData.sku}
-                onChange={(event) => handleFieldChange('sku', event.target.value)}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
-                placeholder="PPC-NEW-001"
-                required
-              />
-            </label>
-            <label className="space-y-2">
-              <span className="text-sm font-medium text-slate-700">Nombre</span>
-              <input
-                value={formData.nombre}
-                onChange={(event) => handleFieldChange('nombre', event.target.value)}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
-                placeholder="Producto"
-                required
-              />
-            </label>
-            <label className="space-y-2">
-              <span className="text-sm font-medium text-slate-700">Categoría</span>
-              <select
-                value={formData.categoria}
-                onChange={(event) => handleFieldChange('categoria', event.target.value)}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
-              >
-                {categories.slice(1).map((category) => (
-                  <option key={category}>{category}</option>
-                ))}
-              </select>
-            </label>
-            <label className="space-y-2">
-              <span className="text-sm font-medium text-slate-700">Canal</span>
-              <select
-                value={formData.canal}
-                onChange={(event) => handleFieldChange('canal', event.target.value)}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
-              >
-                {canales.map((canal) => (
-                  <option key={canal}>{canal}</option>
-                ))}
-              </select>
-            </label>
-            <label className="space-y-2">
-              <span className="text-sm font-medium text-slate-700">Precio</span>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={formData.precio}
-                onChange={(event) => handleFieldChange('precio', event.target.value)}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
-                placeholder="0.00"
-                required
-              />
-            </label>
-            <label className="space-y-2">
-              <span className="text-sm font-medium text-slate-700">Stock</span>
-              <input
-                type="number"
-                min="0"
-                step="1"
-                value={formData.stock}
-                onChange={(event) => handleFieldChange('stock', event.target.value)}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
-                placeholder="0"
-                required
-              />
-            </label>
-            <label className="space-y-2">
-              <span className="text-sm font-medium text-slate-700">Demanda</span>
-              <select
-                value={formData.demanda}
-                onChange={(event) => handleFieldChange('demanda', event.target.value)}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
-              >
-                {demandas.map((demanda) => (
-                  <option key={demanda}>{demanda}</option>
-                ))}
-              </select>
-            </label>
-            <div className="flex items-end gap-3 md:col-span-2 xl:col-span-4">
-              <Button type="submit" className="bg-slate-950 text-white hover:bg-slate-800">
-                {editingProduct ? 'Guardar cambios' : 'Agregar producto'}
-              </Button>
-              <Button type="button" variant="outline" onClick={resetForm} className="text-slate-950">
-                Cancelar
-              </Button>
-            </div>
-          </form>
-        </Card>
+        </div>
       )}
 
-      <Card className="p-4" hover={false}>
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex flex-wrap gap-2">
-            {categories.map((category) => (
+      {mostrarFormulario && (
+        <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="mb-5 flex items-start justify-between gap-4">
+            <div>
+              <h2 className="text-xl font-bold text-slate-950">
+                {productoEditando ? 'Editar producto' : 'Agregar producto'}
+              </h2>
+              <p className="text-sm text-slate-500">
+                Registra o actualiza productos del inventario.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={limpiarFormulario}
+              className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-950"
+            >
+              <X size={20} />
+            </button>
+          </div>
+
+          <form
+            onSubmit={handleGuardar}
+            className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3"
+          >
+            <label className="space-y-1">
+              <span className="text-sm font-semibold text-slate-700">SKU</span>
+              <input
+                type="text"
+                name="sku"
+                value={formProducto.sku}
+                onChange={handleChange}
+                className="w-full rounded-lg border border-slate-300 px-4 py-3 outline-none focus:border-slate-900"
+                placeholder="PPC-NEW-001"
+              />
+            </label>
+
+            <label className="space-y-1">
+              <span className="text-sm font-semibold text-slate-700">
+                Nombre
+              </span>
+              <input
+                type="text"
+                name="nombre"
+                value={formProducto.nombre}
+                onChange={handleChange}
+                className="w-full rounded-lg border border-slate-300 px-4 py-3 outline-none focus:border-slate-900"
+                placeholder="Producto"
+              />
+            </label>
+
+            <label className="space-y-1">
+              <span className="text-sm font-semibold text-slate-700">
+                Categoría
+              </span>
+              <select
+                name="categoria"
+                value={formProducto.categoria}
+                onChange={handleChange}
+                className="w-full rounded-lg border border-slate-300 px-4 py-3 outline-none focus:border-slate-900"
+              >
+                {categoriasBase.map((categoria) => (
+                  <option key={categoria} value={categoria}>
+                    {categoria}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="space-y-1">
+              <span className="text-sm font-semibold text-slate-700">
+                Precio
+              </span>
+              <input
+                type="number"
+                name="precio"
+                value={formProducto.precio}
+                onChange={handleChange}
+                min="0"
+                step="0.01"
+                className="w-full rounded-lg border border-slate-300 px-4 py-3 outline-none focus:border-slate-900"
+                placeholder="0.00"
+              />
+            </label>
+
+            <label className="space-y-1">
+              <span className="text-sm font-semibold text-slate-700">
+                Stock
+              </span>
+              <input
+                type="number"
+                name="stock"
+                value={formProducto.stock}
+                onChange={handleChange}
+                min="0"
+                className="w-full rounded-lg border border-slate-300 px-4 py-3 outline-none focus:border-slate-900"
+                placeholder="0"
+              />
+            </label>
+
+            <label className="space-y-1">
+              <span className="text-sm font-semibold text-slate-700">
+                Demanda
+              </span>
+              <select
+                name="demanda"
+                value={formProducto.demanda}
+                onChange={handleChange}
+                className="w-full rounded-lg border border-slate-300 px-4 py-3 outline-none focus:border-slate-900"
+              >
+                <option value="Baja">Baja</option>
+                <option value="Media">Media</option>
+                <option value="Alta">Alta</option>
+              </select>
+            </label>
+
+            <div className="flex gap-3 md:col-span-2 xl:col-span-3">
               <button
-                key={category}
+                type="submit"
+                disabled={guardando}
+                className="rounded-lg bg-slate-950 px-5 py-3 font-medium text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {guardando
+                  ? 'Guardando...'
+                  : productoEditando
+                    ? 'Actualizar'
+                    : 'Agregar'}
+              </button>
+
+              <button
                 type="button"
-                onClick={() => setFiltro(category)}
-                className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                  filtro === category
-                    ? 'bg-primary-600 text-white'
+                onClick={limpiarFormulario}
+                className="rounded-lg border border-slate-300 bg-white px-5 py-3 font-medium text-slate-700 transition hover:bg-slate-50"
+              >
+                Cancelar
+              </button>
+            </div>
+          </form>
+        </section>
+      )}
+
+      <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex flex-wrap gap-2">
+            {categorias.map((categoria) => (
+              <button
+                key={categoria}
+                type="button"
+                onClick={() => setCategoriaActiva(categoria)}
+                className={`rounded-lg px-4 py-2 font-medium transition ${
+                  categoriaActiva === categoria
+                    ? 'bg-slate-950 text-white'
                     : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                 }`}
               >
-                {category}
+                {categoria}
               </button>
             ))}
           </div>
-          <div className="flex min-w-0 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 lg:w-80">
-            <Search size={18} className="text-slate-400" />
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400"
-              placeholder="Buscar en inventario"
+
+          <div className="relative w-full xl:w-80">
+            <Search
+              size={18}
+              className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
             />
+
+            <input
+              type="text"
+              value={busqueda}
+              onChange={(event) => setBusqueda(event.target.value)}
+              placeholder="Buscar producto por nombre"
+              className="w-full rounded-lg border border-slate-300 bg-white py-3 pl-11 pr-20 outline-none focus:border-slate-900"
+            />
+
+            {busqueda && (
+              <button
+                type="button"
+                onClick={limpiarBusqueda}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-sm font-medium text-slate-500 hover:text-slate-950"
+              >
+                Limpiar
+              </button>
+            )}
           </div>
         </div>
-      </Card>
+      </section>
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {[
-          { label: 'Total productos', value: filteredProducts.length, color: 'text-slate-950' },
-          { label: 'Stock total', value: filteredProducts.reduce((sum, product) => sum + product.stock, 0), color: 'text-slate-950' },
-          { label: 'Bajo stock', value: filteredProducts.filter((product) => product.stock > 0 && product.stock < 6).length, color: 'text-yellow-600' },
-          { label: 'Agotados', value: filteredProducts.filter((product) => product.stock === 0).length, color: 'text-red-600' },
-        ].map((item) => (
-          <Card key={item.label} className="p-4" hover={false}>
-            <div className="flex items-center gap-2 text-xs font-medium text-slate-500">
-              <Filter size={14} />
-              {item.label}
-            </div>
-            <p className={`mt-2 text-2xl font-bold ${item.color}`}>{item.value}</p>
-          </Card>
-        ))}
-      </div>
+      <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center gap-2 text-sm font-semibold text-slate-500">
+            <Filter size={17} />
+            Total productos
+          </div>
+          <p className="mt-3 text-3xl font-bold">{productosActivos.length}</p>
+        </div>
 
-      <Card className="overflow-hidden" hover={false}>
-        <TableProductos
-          products={filteredProducts}
-          onEdit={handleEditProduct}
-          onDelete={handleDeleteProduct}
-        />
-      </Card>
+        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center gap-2 text-sm font-semibold text-slate-500">
+            <Filter size={17} />
+            Stock total
+          </div>
+          <p className="mt-3 text-3xl font-bold">{stockTotal}</p>
+        </div>
+
+        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center gap-2 text-sm font-semibold text-slate-500">
+            <Filter size={17} />
+            Bajo stock
+          </div>
+          <p className="mt-3 text-3xl font-bold text-yellow-600">
+            {productosBajoStock.length}
+          </p>
+        </div>
+
+        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center gap-2 text-sm font-semibold text-slate-500">
+            <Filter size={17} />
+            Agotados
+          </div>
+          <p className="mt-3 text-3xl font-bold text-red-600">
+            {productosAgotados.length}
+          </p>
+        </div>
+      </section>
+
+      <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[900px] text-left">
+            <thead className="bg-slate-50 text-sm uppercase text-slate-500">
+              <tr>
+                <th className="px-6 py-4">SKU</th>
+                <th className="px-6 py-4">Producto</th>
+                <th className="px-6 py-4">Categoría</th>
+                <th className="px-6 py-4">Precio</th>
+                <th className="px-6 py-4">Stock</th>
+                <th className="px-6 py-4">Acciones</th>
+              </tr>
+            </thead>
+
+            <tbody className="divide-y divide-slate-100">
+              {loading ? (
+                <tr>
+                  <td
+                    colSpan="6"
+                    className="px-6 py-10 text-center text-slate-500"
+                  >
+                    Cargando productos...
+                  </td>
+                </tr>
+              ) : productosFiltrados.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan="6"
+                    className="px-6 py-10 text-center text-slate-500"
+                  >
+                    No se encontraron productos.
+                  </td>
+                </tr>
+              ) : (
+                productosFiltrados.map((producto) => (
+                  <tr key={producto.id} className="hover:bg-slate-50">
+                    <td className="px-6 py-5 font-semibold text-slate-500">
+                      {producto.sku}
+                    </td>
+
+                    <td className="px-6 py-5 font-semibold text-slate-950">
+                      {producto.nombre}
+                    </td>
+
+                    <td className="px-6 py-5">
+                      <span className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-sm font-medium text-blue-700">
+                        {producto.categoria}
+                      </span>
+                    </td>
+
+                    <td className="px-6 py-5 font-semibold">
+                      {formatearMoneda(producto.precio)}
+                    </td>
+
+                    <td className="px-6 py-5">
+                      <span
+                        className={`rounded-full px-3 py-1 text-sm font-semibold ${
+                          producto.stock <= 0
+                            ? 'bg-red-50 text-red-600 ring-1 ring-red-200'
+                            : producto.stock <= 5
+                              ? 'bg-yellow-50 text-yellow-600 ring-1 ring-yellow-200'
+                              : 'bg-green-50 text-green-600 ring-1 ring-green-200'
+                        }`}
+                      >
+                        {producto.stock} u
+                      </span>
+                    </td>
+
+                    <td className="px-6 py-5">
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleEditar(producto)}
+                          className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 font-medium text-blue-700 transition hover:bg-blue-100"
+                        >
+                          <Edit size={17} />
+                          Editar
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleEliminar(producto)}
+                          className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2 font-medium text-red-700 transition hover:bg-red-100"
+                        >
+                          <Trash2 size={17} />
+                          Eliminar
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="border-t border-slate-100 px-6 py-4 text-sm text-slate-500">
+          Mostrando {productosFiltrados.length} de {productosActivos.length}{' '}
+          productos
+        </div>
+      </section>
     </div>
   );
 };

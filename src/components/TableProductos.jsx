@@ -12,8 +12,11 @@ const TableProductos = ({ products = [], onEdit, onDelete }) => {
   const currentProducts = products.slice(startIndex, endIndex);
 
   const getStockColor = (stock) => {
-    if (stock === 0) return 'bg-red-50 text-red-700 ring-red-200';
-    if (stock < 6) return 'bg-yellow-50 text-yellow-700 ring-yellow-200';
+    const stockValue = Number(stock || 0);
+
+    if (stockValue === 0) return 'bg-red-50 text-red-700 ring-red-200';
+    if (stockValue < 6) return 'bg-yellow-50 text-yellow-700 ring-yellow-200';
+
     return 'bg-green-50 text-green-700 ring-green-200';
   };
 
@@ -23,9 +26,21 @@ const TableProductos = ({ products = [], onEdit, onDelete }) => {
       Cómputo: 'bg-violet-50 text-violet-700 ring-violet-200',
       Servicios: 'bg-green-50 text-green-700 ring-green-200',
       Impresoras: 'bg-orange-50 text-orange-700 ring-orange-200',
+      Refacciones: 'bg-slate-50 text-slate-700 ring-slate-200',
+      Componentes: 'bg-slate-50 text-slate-700 ring-slate-200',
+      Cargadores: 'bg-blue-50 text-blue-700 ring-blue-200',
+      Fundas: 'bg-violet-50 text-violet-700 ring-violet-200',
+      Micas: 'bg-green-50 text-green-700 ring-green-200',
+      Audífonos: 'bg-orange-50 text-orange-700 ring-orange-200',
+      Cables: 'bg-blue-50 text-blue-700 ring-blue-200',
       Otros: 'bg-slate-50 text-slate-700 ring-slate-200',
     };
+
     return colors[category] || colors.Otros;
+  };
+
+  const formatPrice = (price) => {
+    return `$${Number(price || 0).toFixed(2)}`;
   };
 
   return (
@@ -34,33 +49,75 @@ const TableProductos = ({ products = [], onEdit, onDelete }) => {
         <table className="w-full min-w-[780px]">
           <thead>
             <tr className="border-b border-slate-200 bg-slate-50">
-              <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">SKU</th>
-              <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Producto</th>
-              <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Categoría</th>
-              <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Canal</th>
-              <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">Precio</th>
-              <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">Stock</th>
-              <th className="px-5 py-3 text-center text-xs font-semibold uppercase tracking-wide text-slate-500">Acciones</th>
+              <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                SKU
+              </th>
+              <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Producto
+              </th>
+              <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Categoría
+              </th>
+              <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Canal más vendido
+              </th>
+              <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Precio
+              </th>
+              <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Stock
+              </th>
+              <th className="px-5 py-3 text-center text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Acciones
+              </th>
             </tr>
           </thead>
+
           <tbody>
             {currentProducts.length > 0 ? (
               currentProducts.map((product) => (
-                <tr key={product.id} className="border-b border-slate-100 hover:bg-slate-50/70">
-                  <td className="px-5 py-4 text-sm font-medium text-slate-500">{product.sku}</td>
-                  <td className="px-5 py-4 text-sm font-semibold text-slate-950">{product.nombre}</td>
+                <tr
+                  key={product.id}
+                  className="border-b border-slate-100 hover:bg-slate-50/70"
+                >
+                  <td className="px-5 py-4 text-sm font-medium text-slate-500">
+                    {product.sku}
+                  </td>
+
+                  <td className="px-5 py-4 text-sm font-semibold text-slate-950">
+                    {product.nombre}
+                  </td>
+
                   <td className="px-5 py-4">
-                    <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ring-1 ${getCategoryColor(product.categoria)}`}>
-                      {product.categoria}
+                    <span
+                      className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ring-1 ${getCategoryColor(
+                        product.categoria,
+                      )}`}
+                    >
+                      {product.categoria || 'Sin categoría'}
                     </span>
                   </td>
-                  <td className="px-5 py-4 text-sm text-slate-600">{product.canal}</td>
-                  <td className="px-5 py-4 text-right text-sm font-semibold text-slate-950">${Number(product.precio).toFixed(2)}</td>
+
+                  <td className="px-5 py-4">
+                    <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700 ring-1 ring-slate-200">
+                      {product.canalMasVendido || product.canal || 'Sin ventas'}
+                    </span>
+                  </td>
+
+                  <td className="px-5 py-4 text-right text-sm font-semibold text-slate-950">
+                    {formatPrice(product.precio)}
+                  </td>
+
                   <td className="px-5 py-4 text-right">
-                    <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ring-1 ${getStockColor(product.stock)}`}>
+                    <span
+                      className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ring-1 ${getStockColor(
+                        product.stock,
+                      )}`}
+                    >
                       {product.stock} u
                     </span>
                   </td>
+
                   <td className="px-5 py-4">
                     <div className="flex items-center justify-center gap-2">
                       <button
@@ -72,6 +129,7 @@ const TableProductos = ({ products = [], onEdit, onDelete }) => {
                         <Edit2 size={15} />
                         Editar
                       </button>
+
                       <button
                         type="button"
                         aria-label="Eliminar producto"
@@ -87,7 +145,10 @@ const TableProductos = ({ products = [], onEdit, onDelete }) => {
               ))
             ) : (
               <tr>
-                <td colSpan="7" className="px-5 py-10 text-center text-sm text-slate-500">
+                <td
+                  colSpan="7"
+                  className="px-5 py-10 text-center text-sm text-slate-500"
+                >
                   No hay productos disponibles.
                 </td>
               </tr>
@@ -99,8 +160,10 @@ const TableProductos = ({ products = [], onEdit, onDelete }) => {
       {totalPages > 1 && (
         <div className="flex flex-col gap-3 border-t border-slate-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-slate-500">
-            Mostrando {startIndex + 1} a {Math.min(endIndex, products.length)} de {products.length}
+            Mostrando {startIndex + 1} a {Math.min(endIndex, products.length)} de{' '}
+            {products.length}
           </p>
+
           <div className="flex items-center gap-2">
             <button
               type="button"
@@ -110,20 +173,24 @@ const TableProductos = ({ products = [], onEdit, onDelete }) => {
             >
               <ChevronLeft size={18} />
             </button>
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-              <button
-                key={page}
-                type="button"
-                onClick={() => setCurrentPage(page)}
-                className={`h-9 w-9 rounded-lg text-sm font-semibold ${
-                  safePage === page
-                    ? 'bg-primary-600 text-white'
-                    : 'border border-slate-200 text-slate-600 hover:bg-slate-50'
-                }`}
-              >
-                {page}
-              </button>
-            ))}
+
+            {Array.from({ length: totalPages }, (_, index) => index + 1).map(
+              (page) => (
+                <button
+                  key={page}
+                  type="button"
+                  onClick={() => setCurrentPage(page)}
+                  className={`h-9 w-9 rounded-lg text-sm font-semibold ${
+                    safePage === page
+                      ? 'bg-primary-600 text-white'
+                      : 'border border-slate-200 text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  {page}
+                </button>
+              ),
+            )}
+
             <button
               type="button"
               onClick={() => setCurrentPage(Math.min(totalPages, safePage + 1))}

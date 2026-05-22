@@ -153,9 +153,15 @@ export const actualizarProducto = asyncHandler(async (req, res) => {
 
 export const eliminarProducto = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const [result] = await pool.query('DELETE FROM productos WHERE id = ?', [id]);
 
-  if (result.affectedRows === 0) return res.status(404).json({ mensaje: 'Producto no encontrado' });
+  const [result] = await pool.query(
+    'UPDATE productos SET estado = ? WHERE id = ?',
+    ['Inactivo', id]
+  );
 
-  res.json({ mensaje: 'Producto eliminado correctamente' });
+  if (result.affectedRows === 0) {
+    return res.status(404).json({ mensaje: 'Producto no encontrado' });
+  }
+
+  res.json({ mensaje: 'Producto desactivado correctamente' });
 });

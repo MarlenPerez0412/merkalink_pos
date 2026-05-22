@@ -1,13 +1,16 @@
 import cors from 'cors';
 import dotenv from 'dotenv';
 import express from 'express';
+import authRoutes from './routes/auth.routes.js';
 import alertasRoutes from './routes/alertas.routes.js';
 import canalesRoutes from './routes/canales.routes.js';
 import empresaRoutes from './routes/empresa.routes.js';
 import productosRoutes from './routes/productos.routes.js';
 import serviciosRoutes from './routes/servicios.routes.js';
 import ventasRoutes from './routes/ventas.routes.js';
+
 import { testConnection } from './config/db.js';
+
 
 dotenv.config();
 
@@ -21,12 +24,14 @@ app.get('/api/health', (req, res) => {
   res.json({ ok: true, message: 'API MercaLink AI funcionando' });
 });
 
+app.use('/api/auth', authRoutes);
 app.use('/api/empresa', empresaRoutes);
 app.use('/api/productos', productosRoutes);
 app.use('/api/ventas', ventasRoutes);
 app.use('/api/canales', canalesRoutes);
 app.use('/api/servicios', serviciosRoutes);
 app.use('/api/alertas', alertasRoutes);
+
 
 app.use((req, res) => {
   res.status(404).json({ mensaje: 'Ruta no encontrada' });
