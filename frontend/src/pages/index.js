@@ -1,0 +1,8 @@
+export { default as Dashboard } from './Dashboard';
+export { default as Inventario } from './Inventario';
+export { default as Ventas } from './Ventas';
+export { default as Canales } from './Canales';
+export { default as Alertas } from './Alertas';
+export { default as Configuracion } from './Configuracion';
+export { default as Login } from './Login';
+export { default as PuntoVenta } from './PuntoVenta';
