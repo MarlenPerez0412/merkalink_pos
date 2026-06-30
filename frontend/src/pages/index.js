@@ -6,3 +6,4 @@ export { default as Alertas } from './Alertas';
 export { default as Configuracion } from './Configuracion';
 export { default as Login } from './Login';
 export { default as PuntoVenta } from './PuntoVenta';
+export { default as AccesoDenegado } from './AccesoDenegado';

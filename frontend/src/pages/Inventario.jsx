@@ -16,6 +16,7 @@ import {
   Tags,
   Trash2,
   TriangleAlert,
+  Upload,
   X,
   XCircle,
 } from 'lucide-react';
@@ -31,6 +32,14 @@ import { getConfiguracion } from '../services/api/configuracionApi';
 import { getProveedores } from '../services/api/proveedoresApi';
 import { getExternalImageUrlCandidate, getImageSrc } from '../utils/images';
 import { getEstadoStock } from '../utils/stock';
+import {
+  activePanelTab,
+  inactivePanelTab,
+  tabButtonBase,
+  tabGroupBase,
+} from '../utils/uiStyles';
+
+
 
 const MAX_PRODUCT_IMAGE_SIZE = 10 * 1024 * 1024;
 const PRODUCT_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
@@ -552,7 +561,7 @@ const Inventario = () => {
 
       <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-200 p-3">
-          <div className="inline-flex rounded-lg bg-slate-100 p-1">
+          <div className={`${tabGroupBase} m-2`}>
             {[
               { id: 'productos', label: 'Productos', icon: PackagePlus },
               { id: 'categorias', label: 'Categorias', icon: Tags },
@@ -563,10 +572,10 @@ const Inventario = () => {
                   key={tab.id}
                   type="button"
                   onClick={() => setTabActiva(tab.id)}
-                  className={`inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-semibold transition ${
+                  className= {`${tabButtonBase} min-w-[134px] ${
                     tabActiva === tab.id
-                      ? 'bg-white text-slate-950 shadow-sm'
-                      : 'text-slate-600 hover:text-slate-950'
+                      ? activePanelTab
+                      : inactivePanelTab
                   }`}
                 >
                   <Icon size={17} />
@@ -846,7 +855,7 @@ const Inventario = () => {
         )}
 
         {tabActiva === 'categorias' && (
-          <div className="grid grid-cols-1 gap-4 p-4 xl:grid-cols-[420px_1fr]">
+          <div className="mx-auto grid w-full max-w-6xl grid-cols-1 gap-4 p-4 xl:grid-cols-[380px_minmax(0,1fr)]">
             <form onSubmit={handleGuardarCategoria} className="rounded-lg border border-slate-200 bg-slate-50 p-4">
               <h2 className="text-lg font-bold text-slate-950">
                 {categoriaEditando ? 'Editar categoria' : 'Nueva categoria'}
@@ -888,7 +897,7 @@ const Inventario = () => {
               </div>
             </form>
 
-            <div className="rounded-lg border border-slate-200 bg-white">
+            <div className="min-w-0 rounded-lg border border-slate-200 bg-white">
               <div className="flex flex-col gap-1 border-b border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                 <h2 className="font-bold text-slate-950">Categorias existentes</h2>
                 <span className="text-sm font-semibold text-slate-500">
@@ -897,12 +906,12 @@ const Inventario = () => {
               </div>
 
               <div className="max-h-[520px] overflow-auto">
-                <table className="w-full min-w-[520px] text-left">
+                <table className="w-full min-w-[560px] text-left">
                   <thead className="sticky top-0 bg-slate-50 text-xs uppercase text-slate-500">
                     <tr>
-                          <th className="px-4 py-3">Categoria</th>
-                          <th className="px-4 py-3">Productos</th>
-                          <th className="px-4 py-3">Acciones</th>
+                      <th className="px-4 py-3">Categoria</th>
+                      <th className="px-4 py-3">Productos</th>
+                      <th className="px-4 py-3">Acciones</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -924,7 +933,7 @@ const Inventario = () => {
                           <td className="px-4 py-3 font-semibold text-slate-950">{categoria.nombre}</td>
                           <td className="px-4 py-3 text-sm text-slate-500">{categoria.totalProductos} productos</td>
                           <td className="px-4 py-3">
-                            <div className="flex gap-2">
+                            <div className="flex flex-wrap gap-2">
                               <button
                                 type="button"
                                 onClick={() => solicitarAccion('editar', 'categoria', categoria)}
@@ -1019,21 +1028,36 @@ const Inventario = () => {
                 />
               </label>
 
-              <label className="space-y-1 md:col-span-2">
+              <div className="space-y-1 md:col-span-2">
                 <span className="text-sm font-semibold text-slate-700">Subir imagen desde el equipo</span>
-                <input
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  onChange={handleSubirImagenProducto}
-                  disabled={subiendoImagen}
-                  className="w-full rounded-lg border border-dashed border-slate-300 px-4 py-3 text-sm text-slate-600 file:mr-4 file:rounded-lg file:border-0 file:bg-slate-950 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-slate-800 disabled:opacity-60"
-                />
+                <div className="flex flex-wrap items-center gap-3 rounded-lg border border-dashed border-slate-300 px-4 py-3">
+                  <label
+                    htmlFor="producto-imagen"
+                    className={`inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 ${
+                      subiendoImagen ? 'pointer-events-none opacity-60' : ''
+                    }`}
+                  >
+                    <Upload size={16} />
+                    Seleccionar archivo
+                  </label>
+                  <span className="text-sm text-slate-500">
+                    {subiendoImagen ? 'Subiendo imagen...' : 'Ningún archivo seleccionado'}
+                  </span>
+                  <input
+                    id="producto-imagen"
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    onChange={handleSubirImagenProducto}
+                    disabled={subiendoImagen}
+                    className="sr-only"
+                  />
+                </div>
                 <span className="text-xs text-slate-500">
                   {subiendoImagen
                     ? 'Subiendo imagen...'
                     : 'Formatos permitidos: jpg, jpeg, png o webp. Maximo 10 MB.'}
                 </span>
-              </label>
+              </div>
 
               <label className="space-y-1">
                 <span className="text-sm font-semibold text-slate-700">Categoria</span>
@@ -1127,7 +1151,7 @@ const Inventario = () => {
                       La vista previa se actualiza al escribir una URL o al subir un archivo local.
                     </p>
                     <p>
-                      En MySQL solo se guarda la ruta en <span className="font-semibold">imagen_url</span>.
+                      En la base de datos solo se guarda la ruta en <span className="font-semibold">imagen_url</span>.
                     </p>
                   </div>
                 </div>
@@ -1145,7 +1169,7 @@ const Inventario = () => {
                 <button
                   type="button"
                   onClick={limpiarFormularioProducto}
-                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-red-200 bg-red-50 px-5 py-3 text-sm font-semibold text-red-700 transition hover:border-red-300 hover:bg-red-100"
                 >
                   <XCircle size={17} />
                   Cancelar

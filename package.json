@@ -2,12 +2,16 @@
   "name": "mercalink-pos",
   "private": true,
   "version": "1.0.0",
-  "description": "MercaLink POS organizado en frontend, backend, database y docs.",
+  "description": "MercaLink POS organizado en frontend y backend.",
   "scripts": {
+    "dev": "concurrently \"npm --prefix backend run dev\" \"npm --prefix frontend run dev\"",
     "dev:frontend": "npm --prefix frontend run dev",
     "dev:backend": "npm --prefix backend run dev",
     "start:backend": "npm --prefix backend run start",
     "build:frontend": "npm --prefix frontend run build",
     "lint:frontend": "npm --prefix frontend run lint"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.3"
   }
 }

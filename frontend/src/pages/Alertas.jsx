@@ -15,8 +15,21 @@ import {
   XCircle,
 } from 'lucide-react';
 import { apiRequest } from '../services/api/apiClient';
+import {
+  activePanelTab,
+  inactivePanelTab,
+  tabButtonBase,
+  tabGroupBase,
+} from '../utils/uiStyles';
 
-const filtros = ['Todas', 'Producto agotado', 'Stock bajo', 'Reabastecimiento', 'Pendiente', 'Revisada'];
+const filtros = [
+  { id: 'todas', label: 'Todas' },
+  { id: 'producto_agotado', label: 'Producto agotado' },
+  { id: 'stock_bajo', label: 'Stock bajo' },
+  { id: 'reabastecimiento', label: 'Reabastecimiento' },
+  { id: 'pendiente', label: 'Pendiente' },
+  { id: 'revisada', label: 'Revisada' },
+];
 
 const normalizarTexto = (texto = '') =>
   String(texto)
@@ -69,50 +82,77 @@ const formatearFecha = (fecha) => {
 };
 
 const obtenerConfigAlerta = (alerta) => {
-  const texto = normalizarTexto(`${obtenerNivel(alerta)} ${obtenerTipo(alerta)} ${obtenerMensaje(alerta)}`);
+  const estado = normalizarTexto(obtenerEstado(alerta));
+  const texto = normalizarTexto(`${obtenerNivel(alerta)} ${obtenerTipo(alerta)} ${obtenerMensaje(alerta)} ${estado}`);
+
+  if (estado.includes('atendida') || estado.includes('resuelta')) {
+    return {
+      icon: CheckCircle,
+      stripe: 'bg-emerald-500',
+      card: 'border-slate-200 bg-white',
+      iconBox: 'bg-emerald-50 text-emerald-600 ring-1 ring-emerald-200',
+      badge: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+      button: 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100',
+    };
+  }
+
+  if (estado.includes('revisada') || estado.includes('vista')) {
+    return {
+      icon: CheckCircle,
+      stripe: 'bg-slate-400',
+      card: 'border-slate-200 bg-white',
+      iconBox: 'bg-slate-100 text-slate-600 ring-1 ring-slate-200',
+      badge: 'border-slate-200 bg-slate-100 text-slate-600',
+      button: 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100',
+    };
+  }
 
   if (texto.includes('sin stock') || texto.includes('critica') || texto.includes('agotado')) {
     return {
       icon: XCircle,
-      card: 'border-red-200 bg-red-50',
-      iconBox: 'bg-red-100 text-red-600',
-      badge: 'border-red-200 bg-red-100 text-red-700',
-      button: 'border-red-200 bg-white text-red-700 hover:bg-red-100',
+      stripe: 'bg-red-500',
+      card: 'border-slate-200 bg-white',
+      iconBox: 'bg-red-50 text-red-600 ring-1 ring-red-200',
+      badge: 'border-red-200 bg-red-50 text-red-700',
+      button: 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100',
     };
   }
 
   if (texto.includes('alta demanda')) {
     return {
       icon: TrendingUp,
-      card: 'border-orange-200 bg-orange-50',
-      iconBox: 'bg-orange-100 text-orange-600',
-      badge: 'border-orange-200 bg-orange-100 text-orange-700',
-      button: 'border-orange-200 bg-white text-orange-700 hover:bg-orange-100',
+      stripe: 'bg-orange-500',
+      card: 'border-slate-200 bg-white',
+      iconBox: 'bg-orange-50 text-orange-600 ring-1 ring-orange-200',
+      badge: 'border-orange-200 bg-orange-50 text-orange-700',
+      button: 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100',
     };
   }
 
   if (texto.includes('stock bajo') || texto.includes('advertencia')) {
     return {
       icon: TriangleAlert,
-      card: 'border-yellow-200 bg-yellow-50',
-      iconBox: 'bg-yellow-100 text-yellow-700',
-      badge: 'border-yellow-200 bg-yellow-100 text-yellow-700',
-      button: 'border-yellow-200 bg-white text-yellow-700 hover:bg-yellow-100',
+      stripe: 'bg-yellow-400',
+      card: 'border-slate-200 bg-white',
+      iconBox: 'bg-yellow-50 text-yellow-700 ring-1 ring-yellow-200',
+      badge: 'border-yellow-200 bg-yellow-50 text-yellow-700',
+      button: 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100',
     };
   }
 
   return {
     icon: Package,
+    stripe: 'bg-blue-500',
     card: 'border-slate-200 bg-white',
-    iconBox: 'bg-slate-100 text-slate-700',
-    badge: 'border-slate-200 bg-slate-100 text-slate-700',
-    button: 'border-slate-200 bg-white text-slate-700 hover:bg-slate-100',
+    iconBox: 'bg-blue-50 text-blue-600 ring-1 ring-blue-200',
+    badge: 'border-blue-200 bg-blue-50 text-blue-700',
+    button: 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100',
   };
 };
 
 const Alertas = () => {
   const [alertas, setAlertas] = useState([]);
-  const [filtroActivo, setFiltroActivo] = useState('Todas');
+  const [filtroActivo, setFiltroActivo] = useState('todas');
   const [cargando, setCargando] = useState(true);
   const [actualizando, setActualizando] = useState(false);
   const [mensaje, setMensaje] = useState('');
@@ -122,7 +162,7 @@ const Alertas = () => {
   const [linksCompra, setLinksCompra] = useState(null);
   const [error, setError] = useState('');
 
-  const cargarAlertas = useCallback(async ({ mostrarCarga = true } = {}) => {
+  const cargarAlertas = useCallback(async ({ mostrarCarga = true, recalcular = true } = {}) => {
     try {
       if (mostrarCarga) setCargando(true);
       setError('');
@@ -132,6 +172,10 @@ const Alertas = () => {
         Esto ayuda a que Alertas tome cambios hechos en Configuración,
         especialmente proveedor, empresa y stock mínimo.
       */
+      if (recalcular) {
+        await apiRequest(`/alertas/actualizar?_=${Date.now()}`, { method: 'POST' });
+      }
+
       const data = await apiRequest(`/alertas?_=${Date.now()}`);
       const lista = Array.isArray(data) ? data : data?.alertas || data?.data || [];
 
@@ -151,16 +195,18 @@ const Alertas = () => {
   }, [cargarAlertas]);
 
   useEffect(() => {
-    window.addEventListener('empresaActualizada', cargarAlertas);
-    window.addEventListener('proveedoresActualizados', cargarAlertas);
-    window.addEventListener('configuracionActualizada', cargarAlertas);
-    window.addEventListener('alertasActualizadas', cargarAlertas);
+    const recargarAlertas = () => cargarAlertas({ mostrarCarga: false });
+
+    window.addEventListener('empresaActualizada', recargarAlertas);
+    window.addEventListener('proveedoresActualizados', recargarAlertas);
+    window.addEventListener('configuracionActualizada', recargarAlertas);
+    window.addEventListener('alertasActualizadas', recargarAlertas);
 
     return () => {
-      window.removeEventListener('empresaActualizada', cargarAlertas);
-      window.removeEventListener('proveedoresActualizados', cargarAlertas);
-      window.removeEventListener('configuracionActualizada', cargarAlertas);
-      window.removeEventListener('alertasActualizadas', cargarAlertas);
+      window.removeEventListener('empresaActualizada', recargarAlertas);
+      window.removeEventListener('proveedoresActualizados', recargarAlertas);
+      window.removeEventListener('configuracionActualizada', recargarAlertas);
+      window.removeEventListener('alertasActualizadas', recargarAlertas);
     };
   }, [cargarAlertas]);
 
@@ -169,10 +215,9 @@ const Alertas = () => {
       setActualizando(true);
       setMensaje('');
       setError('');
-      await apiRequest('/alertas/actualizar', { method: 'POST' });
       await cargarAlertas();
       window.dispatchEvent(new Event('alertasActualizadas'));
-      setMensaje('Alertas recalculadas con productos reales de MySQL.');
+      setMensaje('Alertas recalculadas con productos reales.');
     } catch (err) {
       setError(err.message || 'No se pudieron actualizar las alertas.');
     } finally {
@@ -324,15 +369,41 @@ const Alertas = () => {
   };
 
   const alertasFiltradas = useMemo(() => {
-    if (filtroActivo === 'Todas') return alertas;
-    if (filtroActivo === 'Revisada') return alertas.filter(esRevisada);
+    if (filtroActivo === 'todas') return alertas;
+    if (filtroActivo === 'revisada') return alertas.filter(esRevisada);
 
     return alertas.filter((alerta) => {
-      const texto = normalizarTexto(
-        `${obtenerNivel(alerta)} ${obtenerTipo(alerta)} ${obtenerTitulo(alerta)} ${obtenerEstado(alerta)}`,
-      );
 
-      return texto.includes(normalizarTexto(filtroActivo));
+      const tipo = normalizarTexto(obtenerTipo(alerta));
+      const nivel = normalizarTexto(obtenerNivel(alerta));
+      const titulo = normalizarTexto(obtenerTitulo(alerta));
+      const estado = normalizarTexto(obtenerEstado(alerta));
+      const mensaje = normalizarTexto(obtenerMensaje(alerta));
+
+      const texto = `${tipo} ${nivel} ${titulo} ${estado} ${mensaje}`;
+
+      if (filtroActivo === 'producto_agotado') {
+        return (
+          texto.includes('producto agotado') ||
+          texto.includes('agotado') ||
+          texto.includes('sin stock') ||
+          texto.includes('stock no disponible')
+        );
+      }
+
+      if (filtroActivo === 'stock_bajo') {
+        return texto.includes('stock bajo') || texto.includes('bajo stock');
+      }
+
+      if (filtroActivo === 'reabastecimiento') {
+        return texto.includes('reabastecimiento') || texto.includes('reabastecer');
+      }
+
+      if (filtroActivo === 'pendiente') {
+        return texto.includes('pendiente');
+      }
+
+      return true;
     });
   }, [alertas, filtroActivo]);
 
@@ -357,11 +428,13 @@ const Alertas = () => {
   }, [alertas]);
 
   return (
-    <section className="space-y-6">
+    <section className="alertas-page space-y-6 rounded-2xl p-0">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <div className="flex items-center gap-3">
-            <Bell className="text-yellow-600" size={34} />
+            <span className="grid h-12 w-12 place-items-center rounded-xl bg-transparent text-yellow-500">
+              <Bell size={35} />
+            </span>
             <h1 className="text-3xl font-bold text-slate-950">Alertas de inventario</h1>
           </div>
           <p className="mt-1 text-slate-500">
@@ -373,7 +446,7 @@ const Alertas = () => {
           type="button"
           onClick={actualizarAlertas}
           disabled={actualizando}
-          className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
         >
           <RefreshCw size={18} className={actualizando ? 'animate-spin' : ''} />
           {actualizando ? 'Actualizando...' : 'Actualizar alertas'}
@@ -558,7 +631,7 @@ const Alertas = () => {
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
         {[
           ['Total', metricas.total, Bell, 'text-slate-950'],
           ['Activas', metricas.activas, CheckCircle, 'text-blue-600'],
@@ -566,30 +639,32 @@ const Alertas = () => {
           ['Stock bajo', metricas.bajoStock, TriangleAlert, 'text-yellow-600'],
           ['Alta demanda', metricas.altaDemanda, TrendingUp, 'text-orange-600'],
         ].map(([label, value, Icon, color]) => (
-          <div key={label} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="flex items-center gap-2 text-sm font-semibold text-slate-500">
-              <Icon size={16} />
-              {label}
+          <div key={label} className="alerta-metric rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wide text-slate-500">{label}</p>
+                <p className={`mt-2 text-3xl font-black ${color}`}>{value}</p>
+              </div>
+              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-slate-100 text-slate-600 ring-1 ring-slate-200">
+                <Icon size={19} />
+              </span>
             </div>
-            <p className={`mt-3 text-3xl font-bold ${color}`}>{value}</p>
           </div>
         ))}
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="flex flex-wrap gap-2">
+      <div className="alerta-filterbar rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+        <div className={`${tabGroupBase} m-2`}>
           {filtros.map((filtro) => (
             <button
-              key={filtro}
+              key={filtro.id}
               type="button"
-              onClick={() => setFiltroActivo(filtro)}
-              className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
-                filtroActivo === filtro
-                  ? 'bg-slate-950 text-white shadow-md'
-                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              onClick={() => setFiltroActivo(filtro.id)}
+              className={`${tabButtonBase} min-w-[134px] ${
+                filtroActivo === filtro.id ? activePanelTab : inactivePanelTab
               }`}
             >
-              {filtro}
+              {filtro.label}
             </button>
           ))}
         </div>
@@ -597,14 +672,14 @@ const Alertas = () => {
 
       {cargando ? (
         <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-slate-500 shadow-sm">
-          Cargando alertas desde MySQL...
+          Cargando alertas...
         </div>
       ) : alertasFiltradas.length === 0 ? (
         <div className="rounded-xl border border-green-200 bg-green-50 p-8 text-center text-green-700 shadow-sm">
-          No hay alertas para mostrar.
+          No hay alertas activas en este momento.
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-3">
           {alertasFiltradas.map((alerta) => {
             const config = obtenerConfigAlerta(alerta);
             const Icon = config.icon;
@@ -615,12 +690,13 @@ const Alertas = () => {
             return (
               <article
                 key={id}
-                className={`alerta-card rounded-xl border p-5 shadow-sm transition ${config.card} ${
+                className={`alerta-card relative overflow-hidden rounded-xl border p-5 pl-6 shadow-sm transition ${config.card} ${
                   vista ? 'opacity-70' : ''
                 }`}
               >
+                <span className={`absolute inset-y-0 left-0 w-1.5 ${config.stripe}`} aria-hidden="true" />
                 <div className="flex items-start gap-4">
-                  <div className={`rounded-lg p-3 ${config.iconBox}`}>
+                  <div className={`shrink-0 rounded-xl p-3 ${config.iconBox}`}>
                     <Icon size={24} />
                   </div>
 
@@ -640,31 +716,31 @@ const Alertas = () => {
                     <h3 className="text-base font-bold text-slate-950">{obtenerTitulo(alerta)}</h3>
                     <p className="mt-3 leading-relaxed text-slate-700">{obtenerMensaje(alerta)}</p>
 
-                    <div className="mt-4 grid grid-cols-2 gap-2 text-xs text-slate-600">
-                      <div className="alerta-detail rounded-lg bg-white/70 p-2">
+                    <div className="mt-4 grid grid-cols-1 gap-2 text-xs text-slate-600 sm:grid-cols-2">
+                      <div className="alerta-detail rounded-lg border border-slate-200 bg-white/70 p-2.5">
                         <span className="block font-semibold text-slate-500">Categoría</span>
                         {obtenerCategoria(alerta)}
                       </div>
-                      <div className="alerta-detail rounded-lg bg-white/70 p-2">
+                      <div className="alerta-detail rounded-lg border border-slate-200 bg-white/70 p-2.5">
                         <span className="block font-semibold text-slate-500">Stock actual</span>
                         {obtenerStock(alerta)} unidades
                       </div>
-                      <div className="alerta-detail rounded-lg bg-white/70 p-2">
+                      <div className="alerta-detail rounded-lg border border-slate-200 bg-white/70 p-2.5">
                         <span className="block font-semibold text-slate-500">Límite configurado</span>
                         {obtenerLimite(alerta)} unidades
                       </div>
-                      <div className="alerta-detail rounded-lg bg-white/70 p-2">
+                      <div className="alerta-detail rounded-lg border border-slate-200 bg-white/70 p-2.5">
                         <span className="block font-semibold text-slate-500">Fecha</span>
                         {formatearFecha(obtenerFecha(alerta))}
                       </div>
                     </div>
 
-                    <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+                    <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
                       <button
                         type="button"
                         onClick={() => solicitarCompra(alerta)}
                         disabled={vista}
-                        className={`rounded-lg border px-4 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${config.button}`}
+                        className={`rounded-lg border px-3 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${config.button}`}
                       >
                         Solicitar compra
                       </button>
@@ -672,7 +748,7 @@ const Alertas = () => {
                         type="button"
                         onClick={() => marcarComoVisto(alerta)}
                         disabled={vista}
-                        className={`rounded-lg border px-4 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${config.button}`}
+                        className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {vista ? 'Revisada' : 'Marcar como revisada'}
                       </button>
@@ -680,7 +756,7 @@ const Alertas = () => {
                         type="button"
                         onClick={() => actualizarEstado(alerta, 'Atendida', 'Alerta marcada como atendida.')}
                         disabled={vista || atendida}
-                        className="rounded-lg border border-green-200 bg-white px-4 py-2 text-sm font-semibold text-green-700 transition hover:bg-green-50 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm font-semibold text-green-700 transition hover:bg-green-100 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         Marcar atendida
                       </button>

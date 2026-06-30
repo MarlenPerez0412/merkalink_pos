@@ -5,12 +5,13 @@ import {
   obtenerVentaPorId,
   obtenerVentas,
 } from '../controllers/ventas.controller.js';
+import { autenticar } from '../middlewares/auth.js';
 
 const router = Router();
 
-router.get('/', obtenerVentas);
-router.get('/:id', obtenerVentaPorId);
-router.post('/', crearVenta);
-router.post('/pos', crearVentaPos);
+router.get('/', autenticar, obtenerVentas);
+router.get('/:id', autenticar, obtenerVentaPorId);
+router.post('/', autenticar, crearVenta);
+router.post('/pos', autenticar, crearVentaPos);
 
 export default router;

@@ -6,6 +6,11 @@ import { registrarBitacora } from '../utils/bitacora.js';
 
 const scryptAsync = promisify(scrypt);
 const HASH_PREFIX = 'scrypt$';
+const PASSWORD_SEGURA_MENSAJE =
+  'La contraseña debe tener mínimo 8 caracteres, una mayúscula, una minúscula, un número y un carácter especial.';
+
+const validarPasswordSegura = (password = '') =>
+  /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).{8,}$/.test(String(password));
 
 const hashPassword = async (password) => {
   const salt = randomBytes(16).toString('hex');
@@ -113,6 +118,10 @@ export const cambiarPassword = asyncHandler(async (req, res) => {
     return res.status(400).json({ mensaje: 'Faltan datos para cambiar la contraseña' });
   }
 
+  if (!validarPasswordSegura(nuevoPassword)) {
+    return res.status(400).json({ mensaje: PASSWORD_SEGURA_MENSAJE });
+  }
+
   const [rows] = await pool.query(
     'SELECT id, password FROM usuarios WHERE id = ? AND estado = ? LIMIT 1',
     [usuarioId, 'Activo'],
@@ -186,6 +195,7 @@ export const crearUsuario = asyncHandler(async (req, res) => {
   if (!String(nombre || '').trim()) return res.status(400).json({ mensaje: 'El nombre es obligatorio' });
   if (!String(correo || '').trim()) return res.status(400).json({ mensaje: 'El correo es obligatorio' });
   if (!password) return res.status(400).json({ mensaje: 'La contraseña temporal es obligatoria' });
+  if (!validarPasswordSegura(password)) return res.status(400).json({ mensaje: PASSWORD_SEGURA_MENSAJE });
   if (!['Administrador', 'Cajero'].includes(rol)) return res.status(400).json({ mensaje: 'Rol no valido' });
 
   const [existentes] = await pool.query('SELECT id FROM usuarios WHERE correo = ? LIMIT 1', [correo]);
@@ -226,6 +236,7 @@ export const actualizarUsuario = asyncHandler(async (req, res) => {
 
   if (!String(nombre || '').trim()) return res.status(400).json({ mensaje: 'El nombre es obligatorio' });
   if (!String(correo || '').trim()) return res.status(400).json({ mensaje: 'El correo es obligatorio' });
+  if (password && !validarPasswordSegura(password)) return res.status(400).json({ mensaje: PASSWORD_SEGURA_MENSAJE });
   if (!['Administrador', 'Cajero'].includes(rol)) return res.status(400).json({ mensaje: 'Rol no valido' });
 
   const [existentes] = await pool.query('SELECT id FROM usuarios WHERE correo = ? AND id <> ? LIMIT 1', [correo, id]);

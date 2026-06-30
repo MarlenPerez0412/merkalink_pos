@@ -12,14 +12,16 @@ import {
   TrendingUp,
 } from 'lucide-react';
 
+const adminRoles = ['Administrador', 'Administrador General'];
+
 const menuItems = [
-  { icon: BarChart3, label: 'Dashboard', path: '/', roles: ['Administrador'] },
-  { icon: ShoppingCart, label: 'Punto de Venta', path: '/pos', roles: ['Administrador', 'Cajero'] },
-  { icon: Package, label: 'Inventario', path: '/inventario', roles: ['Administrador'] },
-  { icon: TrendingUp, label: 'Ventas', path: '/ventas', roles: ['Administrador', 'Cajero'] },
-  { icon: Store, label: 'Origen de venta', path: '/canales', roles: ['Administrador'] },
-  { icon: Bell, label: 'Alertas', path: '/alertas', roles: ['Administrador'] },
-  { icon: Settings, label: 'Configuracion', path: '/configuracion', roles: ['Administrador'] },
+  { icon: BarChart3, label: 'Dashboard', path: '/', roles: adminRoles },
+  { icon: ShoppingCart, label: 'Punto de Venta', path: '/pos', roles: [...adminRoles, 'Cajero'] },
+  { icon: Package, label: 'Inventario', path: '/inventario', roles: adminRoles },
+  { icon: TrendingUp, label: 'Ventas', path: '/ventas', roles: [...adminRoles, 'Cajero'] },
+  { icon: Store, label: 'Origen de venta', path: '/canales', roles: adminRoles },
+  { icon: Bell, label: 'Alertas', path: '/alertas', roles: adminRoles },
+  { icon: Settings, label: 'Configuracion', path: '/configuracion', roles: adminRoles },
 ];
 
 const Sidebar = ({ isCollapsed = false, onCollapseChange }) => {
@@ -62,7 +64,7 @@ const Sidebar = ({ isCollapsed = false, onCollapseChange }) => {
           type="button"
           aria-label="Abrir o cerrar menu"
           onClick={() => onCollapseChange?.(!isCollapsed)}
-          className={`hidden rounded-lg bg-yellow-400 p-2 text-black shadow-sm ring-1 ring-yellow-300 transition-colors hover:bg-yellow-300 lg:inline-flex ${
+          className={`hidden rounded-lg bg-[#EAB308] p-2 text-slate-950 shadow-sm ring-1 ring-[#FBBF24] transition-colors hover:bg-[#f59e0b] lg:inline-flex ${
             isCollapsed ? 'mx-auto' : ''
           }`}
         >
@@ -83,8 +85,8 @@ const Sidebar = ({ isCollapsed = false, onCollapseChange }) => {
               onClick={closeMobileMenu}
               className={`flex h-11 items-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors ${
                 active
-                  ? 'bg-yellow-400 text-black ring-1 ring-yellow-300'
-                  : 'text-white hover:bg-slate-800 hover:text-yellow-300'
+                  ? 'bg-[#EAB308] text-slate-950 ring-1 ring-[#FBBF24] shadow-sm'
+                  : 'text-white hover:bg-slate-800 hover:text-slate-100'
               } ${isCollapsed ? 'justify-center' : ''}`}
             >
               <Icon size={19} className="flex-shrink-0" />
@@ -99,7 +101,7 @@ const Sidebar = ({ isCollapsed = false, onCollapseChange }) => {
           type="button"
           title={isCollapsed ? 'Cerrar sesión' : undefined}
           onClick={handleLogout}
-          className={`flex h-11 w-full items-center gap-3 rounded-lg bg-yellow-400 px-3 text-sm font-semibold text-black transition-colors hover:bg-yellow-300 ${
+          className={`flex h-11 w-full items-center gap-3 rounded-lg bg-[#EAB308] px-3 text-sm font-semibold text-slate-950 shadow-sm ring-1 ring-[#FBBF24] transition-colors hover:bg-[#f59e0b] ${
             isCollapsed ? 'justify-center' : ''
           }`}
         >
@@ -116,7 +118,7 @@ const Sidebar = ({ isCollapsed = false, onCollapseChange }) => {
         type="button"
         aria-label="Abrir o cerrar menu"
         onClick={() => setIsMobileOpen((open) => !open)}
-        className="fixed left-4 top-4 z-50 rounded-lg bg-yellow-400 p-2 text-black shadow-lg ring-1 ring-yellow-300 lg:hidden"
+        className="fixed left-4 top-4 z-50 rounded-lg bg-[#EAB308] p-2 text-slate-950 shadow-lg ring-1 ring-[#FBBF24] lg:hidden hover:bg-[#f59e0b]"
       >
         <Menu size={22} />
       </button>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Lock, Mail, Store } from 'lucide-react';
+import { Eye, EyeOff, Lock, Mail, Store } from 'lucide-react';
 import { loginUsuario } from '../services/api/authApi';
 
 const slides = [
@@ -13,8 +13,12 @@ const slides = [
     title: 'Controla ventas, inventario y tickets desde una sola plataforma',
   },
   {
-    image: '/images/login/pos-1.jpg',
+    image: '/images/login/restaurante-3.jpg',
     title: 'Convierte tus ventas diarias en decisiones claras',
+  },
+  {
+    image: '/images/login/restaurante-4.jpg',
+    title: 'Mantén tu operación lista para cada turno',
   },
 ];
 
@@ -28,6 +32,7 @@ const Login = () => {
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [mostrarPassword, setMostrarPassword] = useState(false);
 
   useEffect(() => {
     const interval = window.setInterval(() => {
@@ -100,7 +105,7 @@ const Login = () => {
             {slides[activeSlide].title}
           </h1>
           <p className="mt-5 max-w-xl text-base leading-7 text-slate-200">
-            Operación comercial, caja, inventario y tickets conectados a MySQL para restaurantes y PyMEs mexicanas.
+            Operación comercial, caja, inventario y tickets para restaurantes y PyMEs mexicanas.
           </p>
         </div>
       </section>
@@ -146,14 +151,22 @@ const Login = () => {
               <div className="flex items-center gap-3 rounded-lg border border-slate-300 px-3 py-2 focus-within:border-slate-950">
                 <Lock size={18} className="text-slate-400" />
                 <input
-                  type="password"
+                  type={mostrarPassword ? 'text' : 'password'}
                   name="password"
                   value={formData.password}
                   onChange={handleChange}
                   className="w-full bg-transparent py-1 outline-none"
-                  placeholder="123456"
+                  placeholder=""
                   required
                 />
+                <button
+                  type="button"
+                  onClick={() => setMostrarPassword((current) => !current)}
+                  className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-300"
+                  aria-label={mostrarPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                >
+                  {mostrarPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
               </div>
             </label>
 
@@ -164,16 +177,7 @@ const Login = () => {
             >
               {loading ? 'Ingresando...' : 'Iniciar sesión'}
             </button>
-
-            <div className="rounded-lg bg-slate-50 p-3 text-xs text-slate-500">
-              Las cuentas son creadas por el Administrador General desde Configuración &gt; Usuarios.
-            </div>
           </form>
-
-          <p className="mt-5 text-xs leading-5 text-slate-400">
-            Imagenes locales esperadas: public/images/login/restaurante-1.jpg,
-            public/images/login/restaurante-2.jpg y public/images/login/pos-1.jpg.
-          </p>
         </div>
       </main>
     </div>

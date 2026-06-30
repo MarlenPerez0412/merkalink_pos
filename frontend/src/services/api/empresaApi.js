@@ -13,9 +13,13 @@ export const updateEmpresa = (empresa) =>
 export const uploadLogoEmpresa = async (file) => {
   const formData = new FormData();
   formData.append('logo', file);
+  const token = localStorage.getItem('token');
 
   const response = await fetch(`${API_BASE_URL}/empresa/logo`, {
     method: 'POST',
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
     body: formData,
   });
 

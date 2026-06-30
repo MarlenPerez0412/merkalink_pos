@@ -6,9 +6,10 @@ import {
   Bell,
   Building2,
   Edit,
+  Eye,
+  EyeOff,
   FileText,
   History,
-  KeyRound,
   Lock,
   Mail,
   MapPin,
@@ -26,6 +27,7 @@ import {
   X,
   XCircle,
 } from 'lucide-react';
+
 import { Button, Card } from '../components';
 import { getAlertas } from '../services/api/alertasApi';
 import { getBitacora } from '../services/api/bitacoraApi';
@@ -38,6 +40,12 @@ import { createProveedor, deleteProveedor, getProveedores, updateProveedor } fro
 import { createUsuario, deleteUsuario, getUsuarios, updateUsuario } from '../services/api/usuariosApi';
 import { getVentas } from '../services/api/ventasApi';
 import { cargarLogoEmpresaPdf, fitImageToBox, getLogoEmpresaSrc } from '../utils/logo';
+import {
+  activePanelTab,
+  inactivePanelTab,
+  tabButtonBase,
+  tabGroupBase,
+} from '../utils/uiStyles';
 
 const tabs = [
   { id: 'empresa', label: 'Empresa', icon: Building2 },
@@ -50,6 +58,40 @@ const tabs = [
 
 const fieldClass =
   'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-950 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100';
+
+const PASSWORD_SEGURA_MENSAJE =
+  'La contraseña debe tener mínimo 8 caracteres, una mayúscula, una minúscula, un número y un carácter especial.';
+
+const passwordRequisitos = [
+  { id: 'longitud', label: '8 caracteres', validar: (password) => password.length >= 8 },
+  { id: 'mayuscula', label: 'Mayúscula', validar: (password) => /[A-Z]/.test(password) },
+  { id: 'minuscula', label: 'Minúscula', validar: (password) => /[a-z]/.test(password) },
+  { id: 'numero', label: 'Número', validar: (password) => /\d/.test(password) },
+  { id: 'especial', label: 'Carácter especial', validar: (password) => /[^A-Za-z\d]/.test(password) },
+];
+
+const validarPasswordSegura = (password = '') => passwordRequisitos.every((requisito) => requisito.validar(String(password)));
+
+const PasswordRequirements = ({ password = '' }) => (
+  <div className="space-y-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600">
+    <p>{PASSWORD_SEGURA_MENSAJE}</p>
+    <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
+      {passwordRequisitos.map((requisito) => {
+        const cumple = requisito.validar(password);
+
+        return (
+          <span key={requisito.id} className={cumple ? 'font-semibold text-emerald-700' : 'text-slate-500'}>
+            <span
+              className={`mr-1 inline-block h-2 w-2 rounded-full ${cumple ? 'bg-emerald-500' : 'bg-slate-300'}`}
+              aria-hidden="true"
+            />
+            {requisito.label}
+          </span>
+        );
+      })}
+    </div>
+  </div>
+);
 
 const empresaFallback = {
   nombre: 'MercaLink POS',
@@ -104,6 +146,11 @@ const Configuracion = () => {
     nuevoPassword: '',
     confirmarPassword: '',
   });
+  const [passwordVisible, setPasswordVisible] = useState({
+    passwordActual: false,
+    nuevoPassword: false,
+    confirmarPassword: false,
+  });
   const [tema, setTema] = useState(() => localStorage.getItem('temaSistema') || 'claro');
   const [stockMinimoAlerta, setStockMinimoAlerta] = useState(5);
   const [alertaProductoAgotado, setAlertaProductoAgotado] = useState(true);
@@ -129,6 +176,10 @@ const Configuracion = () => {
     confirmarPassword: '',
     rol: 'Cajero',
     estado: 'Activo',
+  });
+  const [usuarioPasswordVisible, setUsuarioPasswordVisible] = useState({
+    password: false,
+    confirmarPassword: false,
   });
   const [formProveedor, setFormProveedor] = useState({
     nombre: '',
@@ -327,6 +378,12 @@ const Configuracion = () => {
       return;
     }
 
+    if (!validarPasswordSegura(passwordForm.nuevoPassword)) {
+      setError('La contraseña no cumple con los requisitos de seguridad.');
+      setMensaje('');
+      return;
+    }
+
     try {
       setGuardandoPassword(true);
       setError('');
@@ -337,6 +394,7 @@ const Configuracion = () => {
         nuevoPassword: passwordForm.nuevoPassword,
       });
       setPasswordForm({ passwordActual: '', nuevoPassword: '', confirmarPassword: '' });
+      setPasswordVisible({ passwordActual: false, nuevoPassword: false, confirmarPassword: false });
       setMensaje('Contraseña actualizada correctamente.');
     } catch (err) {
       setError(err.message || 'No se pudo cambiar la contraseña.');
@@ -386,6 +444,7 @@ const Configuracion = () => {
       rol: 'Cajero',
       estado: 'Activo',
     });
+    setUsuarioPasswordVisible({ password: false, confirmarPassword: false });
   };
 
   const editarUsuario = (usuario) => {
@@ -398,6 +457,7 @@ const Configuracion = () => {
       rol: usuario.rol || 'Cajero',
       estado: usuario.estado || 'Activo',
     });
+    setUsuarioPasswordVisible({ password: false, confirmarPassword: false });
   };
 
   const handleGuardarUsuario = async (event) => {
@@ -407,6 +467,9 @@ const Configuracion = () => {
     if (!formUsuario.correo.trim()) return setError('El correo del usuario es obligatorio.');
     if (!usuarioEditando && !formUsuario.password) return setError('La contraseña temporal es obligatoria al crear usuario.');
     if (formUsuario.password !== formUsuario.confirmarPassword) return setError('La contraseña y su confirmación no coinciden.');
+    if (formUsuario.password && !validarPasswordSegura(formUsuario.password)) {
+      return setError('La contraseña no cumple con los requisitos de seguridad.');
+    }
 
     const payload = {
       nombre: formUsuario.nombre.trim(),
@@ -1139,12 +1202,28 @@ const Configuracion = () => {
           ].map(([label, name]) => (
             <label key={name} className="space-y-2">
               <span className="text-sm font-semibold text-slate-700">{label}</span>
-              <input
-                type="password"
-                className={fieldClass}
-                value={passwordForm[name]}
-                onChange={(event) => setPasswordForm((prev) => ({ ...prev, [name]: event.target.value }))}
-              />
+              <div className="flex items-center rounded-lg border border-slate-300 bg-white px-3 py-2 focus-within:border-primary-500 focus-within:ring-2 focus-within:ring-primary-100">
+                <input
+                  type={passwordVisible[name] ? 'text' : 'password'}
+                  className="w-full bg-transparent text-slate-950 outline-none"
+                  value={passwordForm[name]}
+                  onChange={(event) => setPasswordForm((prev) => ({ ...prev, [name]: event.target.value }))}
+                />
+                <button
+                  type="button"
+                  onClick={() => setPasswordVisible((prev) => ({ ...prev, [name]: !prev[name] }))}
+                  className="ml-2 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                  aria-label={passwordVisible[name] ? `Ocultar ${label}` : `Mostrar ${label}`}
+                >
+                  {passwordVisible[name] ? <EyeOff size={17} /> : <Eye size={17} />}
+                </button>
+              </div>
+              {name === 'nuevoPassword' && <PasswordRequirements password={passwordForm.nuevoPassword} />}
+              {name === 'confirmarPassword' &&
+                passwordForm.confirmarPassword &&
+                passwordForm.nuevoPassword !== passwordForm.confirmarPassword && (
+                  <p className="text-xs font-semibold text-red-600">Las contraseñas no coinciden.</p>
+                )}
             </label>
           ))}
         </div>
@@ -1153,7 +1232,7 @@ const Configuracion = () => {
           disabled={guardandoPassword}
           className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-100 disabled:opacity-60"
         >
-          <KeyRound size={17} />
+          <Save size={17} />
           {guardandoPassword ? 'Guardando...' : 'Cambiar contraseña'}
         </button>
       </form>
@@ -1253,7 +1332,7 @@ const Configuracion = () => {
             <button
               type="button"
               onClick={limpiarFormUsuario}
-              className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+              className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-100"
             >
               <XCircle size={16} />
               Cancelar edición
@@ -1292,22 +1371,46 @@ const Configuracion = () => {
           </label>
           <label className="space-y-2">
             <span className="text-sm font-semibold text-slate-700">Contraseña temporal</span>
-            <input
-              type="password"
-              className={fieldClass}
-              value={formUsuario.password}
-              onChange={(event) => setFormUsuario((prev) => ({ ...prev, password: event.target.value }))}
-              placeholder={usuarioEditando ? 'Opcional para conservar' : ''}
-            />
+            <div className="flex items-center rounded-lg border border-slate-300 bg-white px-3 py-2 focus-within:border-primary-500 focus-within:ring-2 focus-within:ring-primary-100">
+              <input
+                type={usuarioPasswordVisible.password ? 'text' : 'password'}
+                className="w-full bg-transparent text-slate-950 outline-none"
+                value={formUsuario.password}
+                onChange={(event) => setFormUsuario((prev) => ({ ...prev, password: event.target.value }))}
+                placeholder={usuarioEditando ? 'Opcional para conservar' : ''}
+              />
+              <button
+                type="button"
+                onClick={() => setUsuarioPasswordVisible((prev) => ({ ...prev, password: !prev.password }))}
+                className="ml-2 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                aria-label={usuarioPasswordVisible.password ? 'Ocultar contrasena temporal' : 'Mostrar contrasena temporal'}
+              >
+                {usuarioPasswordVisible.password ? <EyeOff size={17} /> : <Eye size={17} />}
+              </button>
+            </div>
+            <PasswordRequirements password={formUsuario.password} />
           </label>
           <label className="space-y-2">
             <span className="text-sm font-semibold text-slate-700">Confirmar contraseña</span>
-            <input
-              type="password"
-              className={fieldClass}
-              value={formUsuario.confirmarPassword}
-              onChange={(event) => setFormUsuario((prev) => ({ ...prev, confirmarPassword: event.target.value }))}
-            />
+            <div className="flex items-center rounded-lg border border-slate-300 bg-white px-3 py-2 focus-within:border-primary-500 focus-within:ring-2 focus-within:ring-primary-100">
+              <input
+                type={usuarioPasswordVisible.confirmarPassword ? 'text' : 'password'}
+                className="w-full bg-transparent text-slate-950 outline-none"
+                value={formUsuario.confirmarPassword}
+                onChange={(event) => setFormUsuario((prev) => ({ ...prev, confirmarPassword: event.target.value }))}
+              />
+              <button
+                type="button"
+                onClick={() => setUsuarioPasswordVisible((prev) => ({ ...prev, confirmarPassword: !prev.confirmarPassword }))}
+                className="ml-2 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                aria-label={usuarioPasswordVisible.confirmarPassword ? 'Ocultar confirmacion de contrasena' : 'Mostrar confirmacion de contrasena'}
+              >
+                {usuarioPasswordVisible.confirmarPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+              </button>
+            </div>
+            {formUsuario.confirmarPassword && formUsuario.password !== formUsuario.confirmarPassword && (
+              <p className="text-xs font-semibold text-red-600">Las contraseñas no coinciden.</p>
+            )}
           </label>
           <label className="space-y-2">
             <span className="text-sm font-semibold text-slate-700">Estado</span>
@@ -1333,7 +1436,7 @@ const Configuracion = () => {
       </form>
 
       <div className="overflow-x-auto rounded-lg border border-slate-200">
-        <table className="w-full min-w-[760px] text-left">
+        <table className={`${tabGroupBase} m-2`}>
           <thead className="bg-slate-50 text-xs uppercase text-slate-500">
             <tr>
               {['Nombre', 'Correo', 'Rol', 'Estado', 'Acciones'].map((heading) => (
@@ -1652,8 +1755,8 @@ const Configuracion = () => {
       )}
 
       <Card className="overflow-hidden" hover={false}>
-        <div className="overflow-x-auto border-b border-slate-200">
-          <div className="flex min-w-max gap-1 p-2">
+        <div className="overflow-x-auto border-b border-slate-200 dark:border-slate-700">
+          <div className="m-2 inline-flex flex-wrap gap-1 rounded-lg bg-slate-100 p-1">
             {tabs
               .filter((tab) => !tab.adminOnly || usuarioActual?.rol === 'Administrador')
               .map((tab) => {
@@ -1666,10 +1769,8 @@ const Configuracion = () => {
                     setActiveTab(tab.id);
                     setSearchParams({ tab: tab.id });
                   }}
-                  className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
-                    activeTab === tab.id
-                      ? 'bg-primary-50 text-primary-700'
-                      : 'text-slate-600 hover:bg-slate-100 hover:text-slate-950'
+                  className={`${tabButtonBase} min-w-[134px] ${
+                    activeTab === tab.id ? activePanelTab : inactivePanelTab
                   }`}
                 >
                   <Icon size={18} />

@@ -178,10 +178,12 @@ export const obtenerVentas = asyncHandler(async (req, res) => {
   const { usuario_id, canal_id, fecha, hora_inicio, hora_fin } = req.query;
   const filtros = [];
   const params = [];
+  const esCajero = String(req.usuario?.rol || '').trim() === 'Cajero';
+  const usuarioFiltro = esCajero ? req.usuario.id : usuario_id;
 
-  if (usuario_id) {
+  if (usuarioFiltro) {
     filtros.push('v.usuario_id = ?');
-    params.push(usuario_id);
+    params.push(usuarioFiltro);
   }
 
   if (canal_id) {
@@ -256,6 +258,10 @@ export const obtenerVentaPorId = asyncHandler(async (req, res) => {
     return res.status(404).json({ mensaje: 'Venta no encontrada' });
   }
 
+  if (String(req.usuario?.rol || '').trim() === 'Cajero' && venta.usuarioId !== req.usuario.id) {
+    return res.status(403).json({ mensaje: 'No tienes permisos para realizar esta accion.' });
+  }
+
   res.json(venta);
 });
 
@@ -292,8 +298,8 @@ export const crearVenta = asyncHandler(async (req, res) => {
     const total = Number(product.precio) * Number(cantidad);
 
     const [result] = await connection.query(
-      'INSERT INTO ventas (canal_id, metodo_pago, total, estado) VALUES (?, ?, ?, ?)',
-      [finalCanalId, metodoPago, total, 'Completada'],
+      'INSERT INTO ventas (usuario_id, canal_id, metodo_pago, total, estado) VALUES (?, ?, ?, ?, ?)',
+      [req.usuario?.id || null, finalCanalId, metodoPago, total, 'Completada'],
     );
 
     await connection.query(
@@ -416,7 +422,7 @@ export const crearVentaPos = asyncHandler(async (req, res) => {
       : Number(montoRecibido);
     const cambioFinal = Number(cambio || 0);
 
-    const cajeroIdFinal = cajeroId || usuarioActualId || usuario_id || null;
+    const cajeroIdFinal = req.usuario?.id || cajeroId || usuarioActualId || usuario_id || null;
 
     const [ventaResult] = await connection.query(
       `

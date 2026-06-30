@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import multer from 'multer';
 import { actualizarEmpresa, obtenerEmpresa, subirLogoEmpresa } from '../controllers/empresa.controller.js';
+import { autenticar, soloAdmin } from '../middlewares/auth.js';
 
 const router = Router();
 const __filename = fileURLToPath(import.meta.url);
@@ -36,8 +37,8 @@ const uploadLogo = multer({
   },
 });
 
-router.get('/', obtenerEmpresa);
-router.put('/', actualizarEmpresa);
-router.post('/logo', uploadLogo.single('logo'), subirLogoEmpresa);
+router.get('/', autenticar, obtenerEmpresa);
+router.put('/', autenticar, soloAdmin, actualizarEmpresa);
+router.post('/logo', autenticar, soloAdmin, uploadLogo.single('logo'), subirLogoEmpresa);
 
 export default router;

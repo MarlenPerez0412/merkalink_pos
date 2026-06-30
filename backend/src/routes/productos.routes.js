@@ -14,6 +14,7 @@ import {
   obtenerProductosPorCategoria,
   obtenerProductos,
 } from '../controllers/productos.controller.js';
+import { autenticar, soloAdmin } from '../middlewares/auth.js';
 
 const router = Router();
 const __filename = fileURLToPath(import.meta.url);
@@ -59,11 +60,11 @@ const uploadProducto = multer({
   },
 });
 
-router.get('/categorias', obtenerCategorias);
-router.get('/categorias/:id/productos', obtenerProductosPorCategoria);
-router.post('/categorias', crearCategoria);
-router.put('/categorias/:id', actualizarCategoria);
-router.delete('/categorias/:id', eliminarCategoria);
+router.get('/categorias', autenticar, obtenerCategorias);
+router.get('/categorias/:id/productos', autenticar, obtenerProductosPorCategoria);
+router.post('/categorias', autenticar, soloAdmin, crearCategoria);
+router.put('/categorias/:id', autenticar, soloAdmin, actualizarCategoria);
+router.delete('/categorias/:id', autenticar, soloAdmin, eliminarCategoria);
 
 const responderImagenSubida = (req, res) => {
   if (!req.file) {
@@ -78,13 +79,13 @@ const responderImagenSubida = (req, res) => {
   });
 };
 
-router.post('/imagenes', uploadProducto.single('imagen'), responderImagenSubida);
-router.post('/upload-image', uploadProducto.single('imagen'), responderImagenSubida);
-router.post('/upload-imagen', uploadProducto.single('imagen'), responderImagenSubida);
+router.post('/imagenes', autenticar, soloAdmin, uploadProducto.single('imagen'), responderImagenSubida);
+router.post('/upload-image', autenticar, soloAdmin, uploadProducto.single('imagen'), responderImagenSubida);
+router.post('/upload-imagen', autenticar, soloAdmin, uploadProducto.single('imagen'), responderImagenSubida);
 
-router.get('/', obtenerProductos);
-router.post('/', crearProducto);
-router.put('/:id', actualizarProducto);
-router.delete('/:id', eliminarProducto);
+router.get('/', autenticar, obtenerProductos);
+router.post('/', autenticar, soloAdmin, crearProducto);
+router.put('/:id', autenticar, soloAdmin, actualizarProducto);
+router.delete('/:id', autenticar, soloAdmin, eliminarProducto);
 
 export default router;

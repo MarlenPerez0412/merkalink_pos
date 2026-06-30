@@ -234,7 +234,7 @@ const Insights = () => {
       {loading && (
         <Card className="p-4" hover={false}>
           <p className="text-sm text-slate-500">
-            Cargando IA Insights desde MySQL...
+            Cargando IA Insights desde la base de datos...
           </p>
         </Card>
       )}

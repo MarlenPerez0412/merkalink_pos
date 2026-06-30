@@ -98,6 +98,17 @@ const obtenerAlcanceUsuario = (source = {}) => {
   };
 };
 
+const obtenerAlcanceAutenticado = (req, fallback = {}) => {
+  if (req.usuario) {
+    return obtenerAlcanceUsuario({
+      rol: req.usuario.rol,
+      usuarioActualId: req.usuario.id,
+    });
+  }
+
+  return obtenerAlcanceUsuario(fallback);
+};
+
 const asegurarAccesoCorte = (corte, alcance) => {
   if (!alcance.esCajero) return true;
   return Boolean(alcance.usuarioActualId && corte.usuarioId === alcance.usuarioActualId);
@@ -176,7 +187,7 @@ const sincronizarDetalleCorteSiEstaVacio = async (connection, corte) => {
 
 export const obtenerCortesCaja = asyncHandler(async (req, res) => {
   await asegurarSchemaCortes();
-  const alcance = obtenerAlcanceUsuario(req.query);
+  const alcance = obtenerAlcanceAutenticado(req, req.query);
   const filtros = [];
   const params = [];
 
@@ -222,7 +233,7 @@ export const crearCorteCaja = asyncHandler(async (req, res) => {
     observaciones = '',
   } = req.body;
 
-  const alcance = obtenerAlcanceUsuario({ rol, usuarioActualId, usuarioId });
+  const alcance = obtenerAlcanceAutenticado(req, { rol, usuarioActualId, usuarioId });
   const usuarioIdFinal = alcance.esCajero ? alcance.usuarioActualId : usuarioId;
 
   if (alcance.esCajero && !usuarioIdFinal) {
@@ -389,7 +400,7 @@ const obtenerDetalleCorte = async (id) => {
 
 export const obtenerCorteCajaPorId = asyncHandler(async (req, res) => {
   await asegurarSchemaCortes();
-  const alcance = obtenerAlcanceUsuario(req.query);
+  const alcance = obtenerAlcanceAutenticado(req, req.query);
   const corte = await obtenerDetalleCorte(req.params.id);
 
   if (!corte) return res.status(404).json({ mensaje: 'Corte de caja no encontrado' });
@@ -402,7 +413,7 @@ export const obtenerCorteCajaPorId = asyncHandler(async (req, res) => {
 
 export const obtenerPdfDataCorte = asyncHandler(async (req, res) => {
   await asegurarSchemaCortes();
-  const alcance = obtenerAlcanceUsuario(req.query);
+  const alcance = obtenerAlcanceAutenticado(req, req.query);
   const corte = await obtenerDetalleCorte(req.params.id);
 
   if (!corte) return res.status(404).json({ mensaje: 'Corte de caja no encontrado' });
@@ -423,7 +434,7 @@ export const obtenerPdfDataCorte = asyncHandler(async (req, res) => {
 
 export const obtenerReporteCorteCaja = asyncHandler(async (req, res) => {
   await asegurarSchemaCortes();
-  const alcance = obtenerAlcanceUsuario(req.query);
+  const alcance = obtenerAlcanceAutenticado(req, req.query);
   const corte = await obtenerDetalleCorte(req.params.id);
 
   if (!corte) return res.status(404).json({ mensaje: 'Corte de caja no encontrado' });
@@ -661,6 +672,8 @@ export const obtenerReporteCorteCaja = asyncHandler(async (req, res) => {
 export const obtenerResumenProductosCorte = asyncHandler(async (req, res) => {
   await asegurarSchemaCortes();
   const { fecha, hora_inicio, hora_fin, usuario_id, canal_id } = req.query;
+  const alcance = obtenerAlcanceAutenticado(req, req.query);
+  const usuarioIdFinal = alcance.esCajero ? alcance.usuarioActualId : usuario_id;
 
   if (!fecha || !hora_inicio || !hora_fin) {
     return res.status(400).json({ mensaje: 'Fecha, hora_inicio y hora_fin son obligatorios' });
@@ -670,7 +683,7 @@ export const obtenerResumenProductosCorte = asyncHandler(async (req, res) => {
     fecha,
     horaInicio: hora_inicio,
     horaFin: hora_fin,
-    usuarioId: usuario_id,
+    usuarioId: usuarioIdFinal,
     canalId: canal_id,
   });
 
@@ -692,8 +705,15 @@ export const obtenerResumenProductosCorte = asyncHandler(async (req, res) => {
 
 export const cancelarCorteCaja = asyncHandler(async (req, res) => {
   await asegurarSchemaCortes();
+  const alcance = obtenerAlcanceAutenticado(req, req.query);
   const [anteriores] = await pool.query('SELECT * FROM cortes_caja WHERE id = ? LIMIT 1', [req.params.id]);
   const anterior = anteriores[0];
+
+  if (!anterior) return res.status(404).json({ mensaje: 'Corte de caja no encontrado' });
+
+  if (!asegurarAccesoCorte(mapCorte(anterior), alcance)) {
+    return res.status(403).json({ mensaje: 'No tienes permisos para realizar esta accion.' });
+  }
 
   const [result] = await pool.query('UPDATE cortes_caja SET estado = ? WHERE id = ?', ['cancelado', req.params.id]);
 

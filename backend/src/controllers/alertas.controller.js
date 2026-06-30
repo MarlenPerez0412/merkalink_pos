@@ -10,6 +10,7 @@ const DEFAULT_CONFIG = {
   alerta_stock_bajo: '1',
   alerta_reabastecimiento: '1',
 };
+const TIPOS_ALERTAS_INVENTARIO = ['Producto agotado', 'Stock bajo', 'Reabastecimiento recomendado', 'Alta demanda'];
 
 const asegurarTablaConfiguracion = async (connection = pool) => {
   await connection.query(`
@@ -122,9 +123,15 @@ export const obtenerAlertas = asyncHandler(async (req, res) => {
       WHERE a.producto_id IS NOT NULL
         AND COALESCE(p.estado, 'Activo') <> 'Inactivo'
         AND a.tipo IN (${tiposActivos.map(() => '?').join(', ')})
+        AND a.estado NOT IN ('Atendida', 'Resuelta')
+        AND (
+          (a.tipo = 'Producto agotado' AND p.stock <= 0)
+          OR (a.tipo = 'Stock bajo' AND p.stock > 0 AND p.stock <= ?)
+          OR (a.tipo IN ('Reabastecimiento recomendado', 'Alta demanda') AND p.demanda = 'Alta')
+        )
       ORDER BY a.fecha DESC
     `,
-    [config.stockMinimoAlerta, ...tiposActivos],
+    [config.stockMinimoAlerta, ...tiposActivos, config.stockMinimoAlerta],
   );
 
   res.json(rows.map(mapAlerta));
@@ -145,6 +152,7 @@ export const generarAlertas = asyncHandler(async (req, res) => {
     `);
 
     let generadas = 0;
+    const alertasVigentes = [];
 
     for (const producto of productos) {
       const stock = Number(producto.stock || 0);
@@ -187,17 +195,39 @@ export const generarAlertas = asyncHandler(async (req, res) => {
           "UPDATE alertas SET mensaje = ?, nivel = ?, estado = 'Pendiente', fecha = CURRENT_TIMESTAMP WHERE id = ?",
           [mensaje, nivel, existentes[0].id],
         );
+        alertasVigentes.push(existentes[0].id);
       } else {
-        await connection.query(
+        const [insertResult] = await connection.query(
           `
             INSERT INTO alertas (producto_id, tipo, mensaje, nivel, estado, fecha)
             VALUES (?, ?, ?, ?, 'Pendiente', CURRENT_TIMESTAMP)
           `,
           [producto.id, tipo, mensaje, nivel],
         );
+        alertasVigentes.push(insertResult.insertId);
         generadas += 1;
       }
     }
+
+    const placeholdersTipos = TIPOS_ALERTAS_INVENTARIO.map(() => '?').join(', ');
+    const paramsResolver = [...TIPOS_ALERTAS_INVENTARIO];
+    let filtroVigentes = '';
+
+    if (alertasVigentes.length > 0) {
+      filtroVigentes = `AND id NOT IN (${alertasVigentes.map(() => '?').join(', ')})`;
+      paramsResolver.push(...alertasVigentes);
+    }
+
+    await connection.query(
+      `
+        UPDATE alertas
+        SET estado = 'Resuelta', fecha = CURRENT_TIMESTAMP
+        WHERE tipo IN (${placeholdersTipos})
+          AND estado NOT IN ('Revisada', 'Atendida', 'Vista', 'Resuelta')
+          ${filtroVigentes}
+      `,
+      paramsResolver,
+    );
 
     await connection.commit();
 

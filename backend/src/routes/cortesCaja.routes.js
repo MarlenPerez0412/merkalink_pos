@@ -8,15 +8,16 @@ import {
   obtenerReporteCorteCaja,
   obtenerResumenProductosCorte,
 } from '../controllers/cortesCaja.controller.js';
+import { autenticar } from '../middlewares/auth.js';
 
 const router = Router();
 
-router.get('/', obtenerCortesCaja);
-router.post('/', crearCorteCaja);
-router.get('/resumen-productos', obtenerResumenProductosCorte);
-router.get('/:id/reporte', obtenerReporteCorteCaja);
-router.get('/:id/pdf-data', obtenerPdfDataCorte);
-router.get('/:id', obtenerCorteCajaPorId);
-router.delete('/:id', cancelarCorteCaja);
+router.get('/', autenticar, obtenerCortesCaja);
+router.post('/', autenticar, crearCorteCaja);
+router.get('/resumen-productos', autenticar, obtenerResumenProductosCorte);
+router.get('/:id/reporte', autenticar, obtenerReporteCorteCaja);
+router.get('/:id/pdf-data', autenticar, obtenerPdfDataCorte);
+router.get('/:id', autenticar, obtenerCorteCajaPorId);
+router.delete('/:id', autenticar, cancelarCorteCaja);
 
 export default router;

@@ -10,13 +10,13 @@ const Button = ({
 
   const variants = {
     primary:
-      'bg-primary-600 text-white shadow-sm hover:bg-primary-700 active:scale-[0.98]',
+      'bg-[#EAB308] text-slate-950 shadow-sm hover:bg-[#F59E0B] active:scale-[0.98]',
     secondary:
       'bg-slate-100 text-slate-900 hover:bg-slate-200 active:scale-[0.98]',
     accent:
       'bg-accent-600 text-white shadow-sm hover:bg-accent-700 active:scale-[0.98]',
     outline:
-      'border border-slate-300 bg-white text-slate-700 hover:border-primary-300 hover:bg-primary-50 hover:text-primary-700 active:scale-[0.98]',
+      'border border-slate-300 bg-white text-slate-700 hover:border-[#FBBF24] hover:bg-[#FEF3C7] hover:text-slate-950 active:scale-[0.98]',
     danger:
       'bg-red-600 text-white shadow-sm hover:bg-red-700 active:scale-[0.98]',
   };

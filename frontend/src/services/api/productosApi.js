@@ -43,9 +43,13 @@ export const deleteProducto = (id) =>
 export const uploadProductoImagen = async (file) => {
   const formData = new FormData();
   formData.append('imagen', file);
+  const token = localStorage.getItem('token');
 
   const response = await fetch(`${API_BASE_URL}/productos/upload-imagen`, {
     method: 'POST',
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
     body: formData,
   });
 

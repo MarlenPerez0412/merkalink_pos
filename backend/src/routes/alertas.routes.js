@@ -5,13 +5,14 @@ import {
   obtenerAlertas,
   solicitarCompra,
 } from '../controllers/alertas.controller.js';
+import { autenticar, soloAdmin } from '../middlewares/auth.js';
 
 const router = Router();
 
-router.get('/', obtenerAlertas);
-router.post('/generar', generarAlertas);
-router.post('/actualizar', generarAlertas);
-router.put('/:id/solicitar-compra', solicitarCompra);
-router.put('/:id/estado', actualizarEstadoAlerta);
+router.get('/', autenticar, soloAdmin, obtenerAlertas);
+router.post('/generar', autenticar, soloAdmin, generarAlertas);
+router.post('/actualizar', autenticar, soloAdmin, generarAlertas);
+router.put('/:id/solicitar-compra', autenticar, soloAdmin, solicitarCompra);
+router.put('/:id/estado', autenticar, soloAdmin, actualizarEstadoAlerta);
 
 export default router;

@@ -4,12 +4,15 @@ import jsPDF from 'jspdf';
 import {
   Barcode,
   CreditCard,
+  Download,
   ImageIcon,
+  MessageCircle,
   Minus,
   Plus,
   Search,
   ShoppingCart,
   Trash2,
+  XCircle,
 } from 'lucide-react';
 import { getProductos } from '../services/api/productosApi';
 import { createVentaPos } from '../services/api/ventasApi';
@@ -66,6 +69,8 @@ const PuntoVenta = () => {
   const [metodoPago, setMetodoPago] = useState('Efectivo');
   const [montoRecibido, setMontoRecibido] = useState('');
   const [ticket, setTicket] = useState(null);
+  const [whatsappCliente, setWhatsappCliente] = useState('');
+  const [compartirError, setCompartirError] = useState('');
   const [loading, setLoading] = useState(true);
   const [loadingOrigenes, setLoadingOrigenes] = useState(true);
   const [procesando, setProcesando] = useState(false);
@@ -165,6 +170,44 @@ const PuntoVenta = () => {
   const iva = total - subtotal;
   const recibidoNumero = Number(montoRecibido || 0);
   const cambio = metodoPago === 'Efectivo' ? Math.max(0, recibidoNumero - total) : 0;
+  const empresaNombre = empresa?.nombre || 'MercaLink POS';
+  const folioTicket = ticket?.folio || `POS-${ticket?.ventaId || ticket?.id || '000000'}`;
+  const fechaTicket = ticket?.fecha ? new Date(ticket.fecha).toLocaleString('es-MX') : '';
+
+  const construirMensajeTicket = () =>
+    [
+      `Gracias por su compra en ${empresaNombre}.`,
+      `Folio: ${folioTicket}.`,
+      `Total: ${formatCurrency(ticket?.total)}.`,
+      `Fecha: ${fechaTicket}.`,
+    ].join(' ');
+
+  const cerrarTicket = () => {
+    setTicket(null);
+    setWhatsappCliente('');
+    setCompartirError('');
+  };
+
+  const enviarPorWhatsapp = () => {
+    const digitos = whatsappCliente.replace(/\D/g, '');
+
+    if (!digitos) {
+      setCompartirError('Ingresa el número de WhatsApp del cliente.');
+      return;
+    }
+
+    const numero = digitos.length === 10 ? `52${digitos}` : digitos;
+
+    if (numero.length < 12 || numero.length > 15) {
+      setCompartirError('Ingresa un número de WhatsApp válido.');
+      return;
+    }
+
+    setCompartirError('');
+    window.open(`https://wa.me/${numero}?text=${encodeURIComponent(construirMensajeTicket())}`, '_blank', 'noopener,noreferrer');
+  };
+
+
 
   const agregarProducto = (producto) => {
     if (Number(producto.stock || 0) <= 0) {
@@ -285,6 +328,8 @@ const PuntoVenta = () => {
       });
       setCarrito([]);
       setMontoRecibido('');
+      setWhatsappCliente('');
+      setCompartirError('');
       setMensaje('Venta registrada correctamente.');
       await cargarProductos();
     } catch (err) {
@@ -515,7 +560,7 @@ const PuntoVenta = () => {
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1fr_420px]">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px] 2xl:grid-cols-[minmax(0,1fr)_420px]">
         <div className="space-y-5">
           <section className="grid grid-cols-1 gap-4 rounded-lg border border-slate-200 bg-white p-5 shadow-sm md:grid-cols-2">
             <label className="space-y-2">
@@ -566,9 +611,9 @@ const PuntoVenta = () => {
                       type="button"
                       onClick={() => agregarProducto(producto)}
                       disabled={sinStock}
-                      className="group flex min-h-[390px] flex-col overflow-hidden rounded-lg border border-slate-200 bg-white text-left shadow-sm transition hover:-translate-y-0.5 hover:border-yellow-300 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60"
+                      className="group flex min-h-[340px] flex-col overflow-hidden rounded-lg border border-slate-200 bg-white text-left shadow-sm transition hover:-translate-y-0.5 hover:border-yellow-300 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      <div className="grid h-44 w-full place-items-center overflow-hidden bg-slate-100 sm:h-48">
+                      <div className="grid h-40 w-full place-items-center overflow-hidden bg-slate-100 sm:h-44">
                         {imagenProducto ? (
                           <img
                             src={imagenProducto}
@@ -657,7 +702,7 @@ const PuntoVenta = () => {
           </section>
         </div>
 
-        <aside className="space-y-5">
+        <aside className="space-y-5 lg:sticky lg:top-6 lg:self-start">
           <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
             <h2 className="mb-4 flex items-center gap-2 font-bold text-slate-950">
               <ShoppingCart size={20} />
@@ -799,17 +844,34 @@ const PuntoVenta = () => {
 
           {ticket && (
             <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="mb-4 flex items-start justify-between gap-3 rounded-lg border border-green-200 bg-green-50 px-4 py-3">
+                <div>
+                  <p className="text-sm font-black text-green-800">Venta realizada - Folio {folioTicket}</p>
+                  <p className="mt-1 text-xs font-semibold text-green-700">
+                    Ticket listo para descargar o compartir.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={cerrarTicket}
+                  className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-red-600 hover:bg-red-50"
+                  aria-label="Cerrar previsualizacion del ticket"
+                >
+                  <XCircle size={19} />
+                </button>
+              </div>
+
               <div className="mx-auto max-w-[300px] rounded-sm border border-slate-300 bg-white p-4 font-mono text-slate-950 shadow-sm">
                 <div className="border-b border-dashed border-slate-400 pb-3 text-center">
                   <h2 className="text-lg font-black uppercase tracking-wide">
-                    {empresa?.nombre || 'Taqueria / Restaurante'}
+                    {empresaNombre}
                   </h2>
                   <p className="text-xs font-bold uppercase">MercaLink POS</p>
                   {empresa?.telefono && <p className="text-[11px]">Tel. {empresa.telefono}</p>}
                 </div>
                 <div className="space-y-1 border-b border-dashed border-slate-400 py-3 text-xs">
-                  <p>Folio: {ticket.folio}</p>
-                  <p>Fecha: {new Date(ticket.fecha).toLocaleString('es-MX')}</p>
+                  <p>Folio: {folioTicket}</p>
+                  <p>Fecha: {fechaTicket}</p>
                   <p>Cajero: {ticket.cajero}</p>
                   <p>Origen de venta: {ticket.canal || 'Sin origen'}</p>
                   <p>Método de pago: {ticket.metodoPago}</p>
@@ -818,9 +880,9 @@ const PuntoVenta = () => {
                   <div className="mb-2 grid grid-cols-[1fr_34px_56px] gap-2 font-bold">
                     <span>Producto</span>
                     <span className="text-right">Cant</span>
-                    <span className="text-right">Subt</span>
-                  </div>
-                  {ticket.productos.map((item) => (
+                      <span className="text-right">Subt</span>
+                    </div>
+                  {(ticket.productos || []).map((item) => (
                     <div key={item.productoId} className="grid grid-cols-[1fr_34px_56px] gap-2 py-1">
                       <span>
                         {item.nombre}
@@ -860,10 +922,46 @@ const PuntoVenta = () => {
               <button
                 type="button"
                 onClick={generarTicketPdf}
-                className="mt-4 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-950 hover:bg-slate-50"
+                className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-slate-950 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800"
               >
-                Generar ticket PDF
+                <Download size={17} />
+                Descargar ticket PDF
               </button>
+
+              <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
+                <div>
+                  <h3 className="font-bold text-slate-950">Compartir ticket</h3>
+                  <p className="text-xs font-semibold text-slate-500">Opcional después de generar la venta</p>
+                </div>
+
+                {compartirError && (
+                  <p className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">
+                    {compartirError}
+                  </p>
+                )}
+
+                <div className="mt-4 space-y-3">
+                  <label className="block space-y-2">
+                    <span className="text-xs font-bold uppercase text-slate-500">WhatsApp del cliente</span>
+                    <input
+                      type="tel"
+                      value={whatsappCliente}
+                      onChange={(event) => setWhatsappCliente(event.target.value)}
+                      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-slate-950"
+                      placeholder="10 digitos o numero con lada"
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={enviarPorWhatsapp}
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-green-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-green-700"
+                  >
+                    <MessageCircle size={17} />
+                    Enviar por WhatsApp
+                  </button>
+                </div>
+
+              </div>
             </section>
           )}
         </aside>
