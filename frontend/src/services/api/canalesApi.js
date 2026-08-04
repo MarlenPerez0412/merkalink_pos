@@ -18,3 +18,8 @@ export const deleteCanal = (id) =>
   apiRequest(`/canales/${id}`, {
     method: 'DELETE',
   });
+
+export const deactivateCanal = (id) =>
+  apiRequest(`/canales/${id}/desactivar`, {
+    method: 'PATCH',
+  });

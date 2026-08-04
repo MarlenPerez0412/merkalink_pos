@@ -11,6 +11,7 @@ import {
   Store,
   TrendingUp,
 } from 'lucide-react';
+import { clearAuthSession } from '../services/api/apiClient';
 
 const adminRoles = ['Administrador', 'Administrador General'];
 
@@ -34,9 +35,7 @@ const Sidebar = ({ isCollapsed = false, onCollapseChange }) => {
   const closeMobileMenu = () => setIsMobileOpen(false);
 
   const handleLogout = () => {
-    localStorage.removeItem('usuario');
-    localStorage.removeItem('token');
-    localStorage.removeItem('rol');
+    clearAuthSession();
     navigate('/login', { replace: true });
   };
 

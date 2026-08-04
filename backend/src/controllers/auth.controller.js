@@ -1,16 +1,38 @@
 import { randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
+import jwt from 'jsonwebtoken';
 import { pool } from '../config/db.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { registrarBitacora } from '../utils/bitacora.js';
 
 const scryptAsync = promisify(scrypt);
 const HASH_PREFIX = 'scrypt$';
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '8h';
 const PASSWORD_SEGURA_MENSAJE =
   'La contraseña debe tener mínimo 8 caracteres, una mayúscula, una minúscula, un número y un carácter especial.';
 
 const validarPasswordSegura = (password = '') =>
   /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).{8,}$/.test(String(password));
+
+const obtenerJwtSecret = () => {
+  if (!process.env.JWT_SECRET) {
+    throw new Error('JWT_SECRET no configurado');
+  }
+
+  return process.env.JWT_SECRET;
+};
+
+const generarToken = (usuario) =>
+  jwt.sign(
+    {
+      id: usuario.id,
+      empresaId: usuario.empresaId,
+      correo: usuario.correo,
+      rol: usuario.rol,
+    },
+    obtenerJwtSecret(),
+    { expiresIn: JWT_EXPIRES_IN },
+  );
 
 const hashPassword = async (password) => {
   const salt = randomBytes(16).toString('hex');
@@ -106,7 +128,7 @@ export const login = asyncHandler(async (req, res) => {
   res.json({
     mensaje: 'Inicio de sesión correcto',
     usuario,
-    token: `demo-token-${usuario.id}`,
+    token: generarToken(usuario),
   });
 });
 
@@ -308,6 +330,10 @@ export const actualizarUsuario = asyncHandler(async (req, res) => {
 
 export const desactivarUsuario = asyncHandler(async (req, res) => {
   await asegurarSchemaUsuarios();
+  if (Number(req.params.id) === Number(req.usuario?.id || req.user?.id || 0)) {
+    return res.status(400).json({ mensaje: 'No puedes desactivar tu propio usuario desde esta sección.' });
+  }
+
   const [anteriores] = await pool.query(
     'SELECT id, empresa_id, nombre, correo, rol, estado, canal_id, fecha_creacion FROM usuarios WHERE id = ? LIMIT 1',
     [req.params.id],
@@ -328,4 +354,69 @@ export const desactivarUsuario = asyncHandler(async (req, res) => {
   });
 
   res.json({ mensaje: 'Usuario desactivado correctamente' });
+});
+
+export const activarUsuario = asyncHandler(async (req, res) => {
+  await asegurarSchemaUsuarios();
+  const [anteriores] = await pool.query(
+    'SELECT id, empresa_id, nombre, correo, rol, estado, canal_id, fecha_creacion FROM usuarios WHERE id = ? LIMIT 1',
+    [req.params.id],
+  );
+  const anterior = anteriores[0];
+
+  const [result] = await pool.query('UPDATE usuarios SET estado = ? WHERE id = ?', ['Activo', req.params.id]);
+
+  if (result.affectedRows === 0) return res.status(404).json({ mensaje: 'Usuario no encontrado' });
+
+  await registrarBitacora({
+    modulo: 'Usuarios',
+    accion: 'Activar usuario',
+    descripcion: `Se activo el usuario ${anterior?.nombre || req.params.id}.`,
+    registro_afectado_id: Number(req.params.id),
+    datos_anteriores: anterior || null,
+    datos_nuevos: { ...(anterior || {}), estado: 'Activo' },
+  });
+
+  res.json({ mensaje: 'Usuario activado correctamente' });
+});
+
+export const eliminarUsuario = asyncHandler(async (req, res) => {
+  await asegurarSchemaUsuarios();
+
+  const usuarioId = Number(req.params.id);
+  if (usuarioId === Number(req.usuario?.id || req.user?.id || 0)) {
+    return res.status(400).json({ mensaje: 'No puedes eliminar tu propio usuario desde esta sección.' });
+  }
+
+  const [anteriores] = await pool.query(
+    'SELECT id, empresa_id, nombre, correo, rol, estado, canal_id, fecha_creacion FROM usuarios WHERE id = ? LIMIT 1',
+    [usuarioId],
+  );
+  const anterior = anteriores[0];
+
+  if (!anterior) return res.status(404).json({ mensaje: 'Usuario no encontrado' });
+
+  try {
+    const [result] = await pool.query('DELETE FROM usuarios WHERE id = ?', [usuarioId]);
+
+    if (result.affectedRows === 0) return res.status(404).json({ mensaje: 'Usuario no encontrado' });
+
+    await registrarBitacora({
+      modulo: 'Usuarios',
+      accion: 'Eliminar usuario',
+      descripcion: `Se elimino el usuario ${anterior.nombre}.`,
+      registro_afectado_id: usuarioId,
+      datos_anteriores: anterior,
+    });
+
+    return res.json({ mensaje: 'Usuario eliminado correctamente' });
+  } catch (error) {
+    if (error?.code === 'ER_ROW_IS_REFERENCED_2' || error?.errno === 1451) {
+      return res.status(409).json({
+        mensaje: 'No se puede eliminar este usuario porque tiene historial relacionado. Desactívalo para bloquear su acceso sin perder registros.',
+      });
+    }
+
+    throw error;
+  }
 });

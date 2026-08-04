@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, Lock, Mail, Store } from 'lucide-react';
+import { TOKEN_STORAGE_KEY } from '../services/api/apiClient';
 import { loginUsuario } from '../services/api/authApi';
 
 const slides = [
@@ -57,8 +58,12 @@ const Login = () => {
       const response = await loginUsuario(formData);
       const { usuario, token } = response;
 
+      if (!token) {
+        throw new Error('El servidor no devolvio un token de autenticacion.');
+      }
+
       localStorage.setItem('usuario', JSON.stringify(usuario));
-      localStorage.setItem('token', token);
+      localStorage.setItem(TOKEN_STORAGE_KEY, token);
       localStorage.setItem('rol', usuario.rol);
 
       navigate(usuario.rol === 'Cajero' ? '/pos' : '/', { replace: true });

@@ -12,6 +12,21 @@ const DEFAULT_CONFIG = {
 };
 const TIPOS_ALERTAS_INVENTARIO = ['Producto agotado', 'Stock bajo', 'Reabastecimiento recomendado', 'Alta demanda'];
 
+const asegurarSchemaAlertas = async (connection = pool) => {
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS alertas (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      producto_id INT NULL,
+      tipo VARCHAR(80) NOT NULL,
+      mensaje TEXT NOT NULL,
+      nivel VARCHAR(40) DEFAULT 'Media',
+      estado VARCHAR(40) DEFAULT 'Pendiente',
+      fecha TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_alertas_producto (producto_id)
+    )
+  `);
+};
+
 const asegurarTablaConfiguracion = async (connection = pool) => {
   await connection.query(`
     CREATE TABLE IF NOT EXISTS configuracion_sistema (
@@ -95,6 +110,7 @@ const mapAlerta = (alerta) => ({
 });
 
 export const obtenerAlertas = asyncHandler(async (req, res) => {
+  await asegurarSchemaAlertas();
   await asegurarSchemaProveedores();
   const config = await obtenerConfiguracionAlertas();
   const tiposActivos = [];
@@ -141,7 +157,9 @@ export const generarAlertas = asyncHandler(async (req, res) => {
   const connection = await pool.getConnection();
 
   try {
+    await asegurarSchemaAlertas(connection);
     const config = await obtenerConfiguracionAlertas(connection);
+    await asegurarSchemaProveedores(connection);
     await connection.beginTransaction();
 
     const [productos] = await connection.query(`
@@ -192,7 +210,17 @@ export const generarAlertas = asyncHandler(async (req, res) => {
 
       if (existentes[0]) {
         await connection.query(
-          "UPDATE alertas SET mensaje = ?, nivel = ?, estado = 'Pendiente', fecha = CURRENT_TIMESTAMP WHERE id = ?",
+          `
+            UPDATE alertas
+            SET mensaje = ?,
+                nivel = ?,
+                estado = CASE
+                  WHEN estado = 'Pendiente de compra' THEN 'Pendiente de compra'
+                  ELSE 'Pendiente'
+                END,
+                fecha = CURRENT_TIMESTAMP
+            WHERE id = ?
+          `,
           [mensaje, nivel, existentes[0].id],
         );
         alertasVigentes.push(existentes[0].id);
@@ -221,7 +249,7 @@ export const generarAlertas = asyncHandler(async (req, res) => {
     await connection.query(
       `
         UPDATE alertas
-        SET estado = 'Resuelta', fecha = CURRENT_TIMESTAMP
+        SET estado = 'Atendida', fecha = CURRENT_TIMESTAMP
         WHERE tipo IN (${placeholdersTipos})
           AND estado NOT IN ('Revisada', 'Atendida', 'Vista', 'Resuelta')
           ${filtroVigentes}
@@ -245,6 +273,7 @@ export const generarAlertas = asyncHandler(async (req, res) => {
 });
 
 export const actualizarEstadoAlerta = asyncHandler(async (req, res) => {
+  await asegurarSchemaAlertas();
   const { id } = req.params;
   const estado = normalizarEstadoAlerta(req.body.estado);
   const estadosPermitidos = ['Pendiente', 'Pendiente de compra', 'Revisada', 'Atendida'];
@@ -272,6 +301,7 @@ export const actualizarEstadoAlerta = asyncHandler(async (req, res) => {
 });
 
 export const solicitarCompra = asyncHandler(async (req, res) => {
+  await asegurarSchemaAlertas();
   await asegurarSchemaProveedores();
   const { id } = req.params;
   const medio = String(req.body.medio || 'WhatsApp').trim();
@@ -302,7 +332,37 @@ export const solicitarCompra = asyncHandler(async (req, res) => {
 
   const alerta = rows[0];
   if (!alerta) return res.status(404).json({ mensaje: 'Alerta no encontrada' });
-  if (!alerta.proveedor) return res.status(400).json({ mensaje: 'Este producto no tiene proveedor asignado.' });
+  if (!alerta.proveedor) {
+    await pool.query('UPDATE alertas SET estado = ? WHERE id = ?', ['Pendiente de compra', id]);
+
+    await registrarBitacora({
+      usuario_id: req.body.usuarioId || req.body.usuario_id || null,
+      modulo: 'Alertas',
+      accion: 'Solicitar compra',
+      descripcion: `Se marco el producto ${alerta.producto || `alerta ${id}`} como pendiente de compra sin proveedor asignado.`,
+      registro_afectado_id: Number(alerta.producto_id || id),
+      datos_anteriores: { estado: alerta.estado || 'Pendiente' },
+      datos_nuevos: {
+        estado: 'Pendiente de compra',
+        proveedor: null,
+      },
+    });
+
+    return res.json({
+      mensaje: 'Producto marcado como pendiente de compra. Agrega un proveedor para preparar WhatsApp o correo.',
+      estado: 'Pendiente de compra',
+      proveedor: null,
+      proveedorTelefono: '',
+      proveedorCorreo: '',
+      medio,
+      mensajeCompra: `Producto pendiente de compra: ${alerta.producto || 'Producto'}. Stock actual: ${Number(alerta.stock_actual || 0)}.`,
+      whatsappUrl: null,
+      correoAsunto: '',
+      correoCuerpo: '',
+      mailtoUrl: null,
+      gmailUrl: null,
+    });
+  }
 
   const telefonoBase = String(alerta.proveedor_telefono || '').replace(/\D/g, '');
   const solicitaWhatsapp = ['WhatsApp', 'Ambas', 'Ambas opciones'].includes(medio);

@@ -98,3 +98,38 @@ export const desactivarProveedor = asyncHandler(async (req, res) => {
 
   res.json({ mensaje: 'Proveedor desactivado correctamente' });
 });
+
+export const activarProveedor = asyncHandler(async (req, res) => {
+  await asegurarSchemaProveedores();
+
+  const [result] = await pool.query('UPDATE proveedores SET estado = ? WHERE id = ?', ['activo', req.params.id]);
+  if (result.affectedRows === 0) return res.status(404).json({ mensaje: 'Proveedor no encontrado' });
+
+  res.json({ mensaje: 'Proveedor activado correctamente' });
+});
+
+export const eliminarProveedor = asyncHandler(async (req, res) => {
+  await asegurarSchemaProveedores();
+  const connection = await pool.getConnection();
+
+  try {
+    await connection.beginTransaction();
+
+    const [proveedores] = await connection.query('SELECT id FROM proveedores WHERE id = ? LIMIT 1', [req.params.id]);
+    if (!proveedores[0]) {
+      await connection.rollback();
+      return res.status(404).json({ mensaje: 'Proveedor no encontrado' });
+    }
+
+    await connection.query('UPDATE productos SET proveedor_id = NULL WHERE proveedor_id = ?', [req.params.id]);
+    await connection.query('DELETE FROM proveedores WHERE id = ?', [req.params.id]);
+    await connection.commit();
+
+    return res.json({ mensaje: 'Proveedor eliminado correctamente' });
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
+});

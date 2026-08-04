@@ -1,5 +1,11 @@
 import { pool } from '../config/db.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
+import {
+  asegurarSchemaReservasStock,
+  completarReservaToken,
+  limpiarReservasExpiradas,
+  obtenerReservadoProducto,
+} from './reservasStock.controller.js';
 
 const mapVenta = (venta) => ({
   id: venta.id,
@@ -342,6 +348,8 @@ export const crearVentaPos = asyncHandler(async (req, res) => {
     canal_id,
     montoRecibido,
     cambio = 0,
+    reservaToken = '',
+    reserva_token = '',
   } = req.body;
 
   if (!Array.isArray(productos) || productos.length === 0) {
@@ -366,9 +374,12 @@ export const crearVentaPos = asyncHandler(async (req, res) => {
   try {
     await asegurarColumnasVentaPos(connection);
     await asegurarColumnaActivoCanales(connection);
+    await asegurarSchemaReservasStock(connection);
     await connection.beginTransaction();
+    await limpiarReservasExpiradas(connection);
 
     const vendidos = [];
+    const tokenReservaFinal = String(reservaToken || reserva_token || '').trim();
 
     for (const item of productosSolicitados) {
       const [rows] = await connection.query(
@@ -388,7 +399,10 @@ export const crearVentaPos = asyncHandler(async (req, res) => {
         return res.status(404).json({ mensaje: `Producto ${item.productoId} no encontrado` });
       }
 
-      if (Number(producto.stock) < item.cantidad) {
+      const reservadoOtros = await obtenerReservadoProducto(connection, item.productoId, tokenReservaFinal);
+      const stockDisponible = Math.max(0, Number(producto.stock || 0) - reservadoOtros);
+
+      if (stockDisponible < item.cantidad) {
         await connection.rollback();
         return res.status(400).json({ mensaje: `Stock insuficiente para ${producto.nombre}` });
       }
@@ -453,6 +467,8 @@ export const crearVentaPos = asyncHandler(async (req, res) => {
         item.productoId,
       ]);
     }
+
+    await completarReservaToken(connection, tokenReservaFinal);
 
     await connection.commit();
 

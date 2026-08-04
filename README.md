@@ -448,6 +448,8 @@ npm start
 
 ## Arquitectura del sistema
 
+La descripción técnica detallada, las equivalencias por capas y las limitaciones actuales se encuentran en [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+
 El sistema utiliza una arquitectura cliente-servidor:
 
 ```text
@@ -481,8 +483,13 @@ Algunos endpoints utilizados por el sistema son:
 /api/cortes-caja
 /api/reportes
 ```
+## Endpoints de autenticación
 
----
+| Método | Ruta | Descripción | Autenticación | Respuestas |
+|---|---|---|---|---|
+| POST | `/api/auth/login` | Inicia sesión y genera un token JWT. | No requerida | `200`, `400`, `401`, `500` |
+| GET | `/api/auth/session` | Valida el token y devuelve los datos de la sesión activa. | JWT | `200`, `401`, `500` |
+| GET | `/api/auth/admin-test` | Comprueba el acceso exclusivo del rol Administrador. | JWT y rol Administrador | `200`, `401`, `403`, `500` |
 
 ## Seguridad y control de acceso
 

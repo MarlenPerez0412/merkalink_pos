@@ -14,6 +14,16 @@ export const updateProveedor = (id, proveedor) =>
     body: JSON.stringify(proveedor),
   });
 
+export const activateProveedor = (id) =>
+  apiRequest(`/proveedores/${id}/activar`, {
+    method: 'PATCH',
+  });
+
+export const deactivateProveedor = (id) =>
+  apiRequest(`/proveedores/${id}/desactivar`, {
+    method: 'PATCH',
+  });
+
 export const deleteProveedor = (id) =>
   apiRequest(`/proveedores/${id}`, {
     method: 'DELETE',

@@ -1,8 +1,15 @@
-import { apiRequest } from './apiClient';
+import { apiFormRequest, apiRequest } from './apiClient';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+const buildQuery = (params = {}) => {
+  const query = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') query.set(key, value);
+  });
+  const queryString = query.toString();
+  return queryString ? `?${queryString}` : '';
+};
 
-export const getProductos = () => apiRequest('/productos');
+export const getProductos = (params = {}) => apiRequest(`/productos${buildQuery(params)}`);
 
 export const getCategorias = () => apiRequest('/productos/categorias');
 
@@ -43,20 +50,5 @@ export const deleteProducto = (id) =>
 export const uploadProductoImagen = async (file) => {
   const formData = new FormData();
   formData.append('imagen', file);
-  const token = localStorage.getItem('token');
-
-  const response = await fetch(`${API_BASE_URL}/productos/upload-imagen`, {
-    method: 'POST',
-    headers: {
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: formData,
-  });
-
-  if (!response.ok) {
-    const errorBody = await response.json().catch(() => ({}));
-    throw new Error(errorBody.mensaje || `Error HTTP ${response.status}`);
-  }
-
-  return response.json();
+  return apiFormRequest('/productos/upload-imagen', formData);
 };

@@ -1,6 +1,7 @@
 import { pool } from '../config/db.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { registrarBitacora } from '../utils/bitacora.js';
+import { asegurarSchemaReservasStock, limpiarReservasExpiradas } from './reservasStock.controller.js';
 import { asegurarSchemaProveedores } from './proveedores.controller.js';
 
 const CATEGORIA_SIN_CATEGORIA = 'Sin categoria';
@@ -109,7 +110,13 @@ const mapProducto = (producto) => ({
   proveedorTelefono: producto.proveedor_telefono || '',
   precio: Number(producto.precio),
   precioSugerido: producto.precio_sugerido === null ? null : Number(producto.precio_sugerido),
-  stock: producto.stock,
+  stock: producto.stock_disponible === undefined ? producto.stock : Number(producto.stock_disponible || 0),
+  stockFisico: Number(producto.stock_fisico ?? producto.stock ?? 0),
+  stock_fisico: Number(producto.stock_fisico ?? producto.stock ?? 0),
+  stockReservado: Number(producto.stock_reservado ?? 0),
+  stock_reservado: Number(producto.stock_reservado ?? 0),
+  stockDisponible: Number(producto.stock_disponible ?? producto.stock ?? 0),
+  stock_disponible: Number(producto.stock_disponible ?? producto.stock ?? 0),
   demanda: producto.demanda,
   promedioVentasDiarias: Number(producto.promedio_ventas_diarias || 0),
   estado: producto.estado,
@@ -337,10 +344,19 @@ export const eliminarCategoria = asyncHandler(async (req, res) => {
 
 export const obtenerProductos = asyncHandler(async (req, res) => {
   await asegurarSchemaProductos();
+  await asegurarSchemaReservasStock();
+  await limpiarReservasExpiradas();
+
+  const reservaToken = String(req.query.reservaToken || req.query.reserva_token || '').trim();
+  const filtroTokenReserva = reservaToken ? 'AND token <> ?' : '';
+  const params = reservaToken ? [reservaToken] : [];
 
   const [rows] = await pool.query(`
     SELECT
       p.*,
+      p.stock AS stock_fisico,
+      COALESCE(rs.stock_reservado, 0) AS stock_reservado,
+      GREATEST(0, p.stock - COALESCE(rs.stock_reservado, 0)) AS stock_disponible,
       c.nombre AS categoria,
       pr.nombre AS proveedor,
       pr.telefono AS proveedor_telefono,
@@ -363,9 +379,17 @@ export const obtenerProductos = asyncHandler(async (req, res) => {
     FROM productos p
     INNER JOIN categorias c ON c.id = p.categoria_id
     LEFT JOIN proveedores pr ON pr.id = p.proveedor_id
+    LEFT JOIN (
+      SELECT producto_id, SUM(cantidad) AS stock_reservado
+      FROM reservas_stock
+      WHERE estado = 'Activa'
+        AND fecha_expiracion > NOW()
+        ${filtroTokenReserva}
+      GROUP BY producto_id
+    ) rs ON rs.producto_id = p.id
     WHERE COALESCE(p.estado, 'Activo') <> 'Inactivo'
     ORDER BY p.id DESC
-  `);
+  `, params);
 
   res.json(rows.map(mapProducto));
 });

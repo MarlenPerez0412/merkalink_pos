@@ -4,10 +4,10 @@ import { ArrowUp, ArrowDown } from 'lucide-react';
 const StatCard = ({ title, value, change, icon: Icon, color = 'primary' }) => {
   const isPositive = change >= 0;
   const colorMap = {
-    primary: 'from-primary-500 to-primary-600',
-    accent: 'from-accent-500 to-accent-600',
-    green: 'from-green-500 to-green-600',
-    orange: 'from-orange-500 to-orange-600',
+    primary: 'border-sky-200 bg-sky-50 text-sky-700',
+    accent: 'border-violet-200 bg-violet-50 text-violet-700',
+    green: 'border-green-200 bg-green-50 text-green-700',
+    orange: 'border-orange-200 bg-orange-50 text-orange-700',
   };
 
   return (
@@ -18,8 +18,8 @@ const StatCard = ({ title, value, change, icon: Icon, color = 'primary' }) => {
             <p className="text-sm font-medium text-gray-600">{title}</p>
             <p className="text-3xl font-bold text-dark-900 mt-2">{value}</p>
           </div>
-          <div className={`bg-gradient-to-br ${colorMap[color]} p-3 rounded-lg`}>
-            <Icon size={24} className="text-white" />
+          <div className={`grid h-12 w-12 shrink-0 place-items-center rounded-lg border ${colorMap[color] || colorMap.primary}`}>
+            <Icon size={26} strokeWidth={2.4} />
           </div>
         </div>
 

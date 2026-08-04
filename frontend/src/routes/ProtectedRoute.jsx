@@ -1,7 +1,8 @@
 import { Navigate, useLocation } from 'react-router-dom';
+import { getAuthToken } from '../services/api/apiClient';
 
 const getSession = () => ({
-  token: localStorage.getItem('token'),
+  token: getAuthToken(),
   rol: localStorage.getItem('rol'),
   usuario: localStorage.getItem('usuario'),
 });

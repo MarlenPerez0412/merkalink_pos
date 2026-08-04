@@ -15,20 +15,50 @@ import {
   XCircle,
 } from 'lucide-react';
 import { apiRequest } from '../services/api/apiClient';
-import {
-  activePanelTab,
-  inactivePanelTab,
-  tabButtonBase,
-  tabGroupBase,
-} from '../utils/uiStyles';
 
-const filtros = [
-  { id: 'todas', label: 'Todas' },
-  { id: 'producto_agotado', label: 'Producto agotado' },
-  { id: 'stock_bajo', label: 'Stock bajo' },
-  { id: 'reabastecimiento', label: 'Reabastecimiento' },
-  { id: 'pendiente', label: 'Pendiente' },
-  { id: 'revisada', label: 'Revisada' },
+const seccionesAlertas = [
+  {
+    id: 'todas',
+    label: 'Todas',
+    descripcion: 'Resumen general de alertas reales.',
+    Icon: Bell,
+    className: 'border-slate-200 bg-white text-slate-700',
+  },
+  {
+    id: 'producto_agotado',
+    label: 'Productos agotados',
+    descripcion: 'Stock en cero.',
+    Icon: XCircle,
+    className: 'border-red-200 bg-red-50 text-red-700',
+  },
+  {
+    id: 'stock_bajo',
+    label: 'Stock bajo',
+    descripcion: 'Debajo del limite configurado.',
+    Icon: TriangleAlert,
+    className: 'border-yellow-200 bg-yellow-50 text-yellow-800',
+  },
+  {
+    id: 'reabastecimiento',
+    label: 'Reabastecimiento',
+    descripcion: 'Compra sugerida o alta demanda.',
+    Icon: TrendingUp,
+    className: 'border-orange-200 bg-orange-50 text-orange-700',
+  },
+  {
+    id: 'pendiente',
+    label: 'Pendientes',
+    descripcion: 'Por revisar o comprar.',
+    Icon: Bell,
+    className: 'border-blue-200 bg-blue-50 text-blue-700',
+  },
+  {
+    id: 'revisada',
+    label: 'Revisadas',
+    descripcion: 'Ya vistas por administrador.',
+    Icon: CheckCircle,
+    className: 'border-slate-200 bg-slate-50 text-slate-700',
+  },
 ];
 
 const normalizarTexto = (texto = '') =>
@@ -79,6 +109,39 @@ const formatearFecha = (fecha) => {
   } catch {
     return 'Fecha no disponible';
   }
+};
+
+const alertaCoincideConSeccion = (alerta, seccionId) => {
+  const tipo = normalizarTexto(obtenerTipo(alerta));
+  const nivel = normalizarTexto(obtenerNivel(alerta));
+  const titulo = normalizarTexto(obtenerTitulo(alerta));
+  const estado = normalizarTexto(obtenerEstado(alerta));
+  const mensaje = normalizarTexto(obtenerMensaje(alerta));
+  const texto = `${tipo} ${nivel} ${titulo} ${estado} ${mensaje}`;
+
+  if (seccionId === 'todas') return true;
+  if (seccionId === 'producto_agotado') {
+    return (
+      texto.includes('producto agotado') ||
+      texto.includes('agotado') ||
+      texto.includes('sin stock') ||
+      texto.includes('stock no disponible') ||
+      obtenerStock(alerta) <= 0
+    );
+  }
+  if (seccionId === 'stock_bajo') {
+    return (
+      !alertaCoincideConSeccion(alerta, 'producto_agotado') &&
+      (texto.includes('stock bajo') || texto.includes('bajo stock') || obtenerStock(alerta) <= obtenerLimite(alerta))
+    );
+  }
+  if (seccionId === 'reabastecimiento') {
+    return texto.includes('reabastecimiento') || texto.includes('reabastecer') || texto.includes('alta demanda');
+  }
+  if (seccionId === 'pendiente') return estado.includes('pendiente');
+  if (seccionId === 'revisada') return esRevisada(alerta);
+
+  return false;
 };
 
 const obtenerConfigAlerta = (alerta) => {
@@ -372,39 +435,7 @@ const Alertas = () => {
     if (filtroActivo === 'todas') return alertas;
     if (filtroActivo === 'revisada') return alertas.filter(esRevisada);
 
-    return alertas.filter((alerta) => {
-
-      const tipo = normalizarTexto(obtenerTipo(alerta));
-      const nivel = normalizarTexto(obtenerNivel(alerta));
-      const titulo = normalizarTexto(obtenerTitulo(alerta));
-      const estado = normalizarTexto(obtenerEstado(alerta));
-      const mensaje = normalizarTexto(obtenerMensaje(alerta));
-
-      const texto = `${tipo} ${nivel} ${titulo} ${estado} ${mensaje}`;
-
-      if (filtroActivo === 'producto_agotado') {
-        return (
-          texto.includes('producto agotado') ||
-          texto.includes('agotado') ||
-          texto.includes('sin stock') ||
-          texto.includes('stock no disponible')
-        );
-      }
-
-      if (filtroActivo === 'stock_bajo') {
-        return texto.includes('stock bajo') || texto.includes('bajo stock');
-      }
-
-      if (filtroActivo === 'reabastecimiento') {
-        return texto.includes('reabastecimiento') || texto.includes('reabastecer');
-      }
-
-      if (filtroActivo === 'pendiente') {
-        return texto.includes('pendiente');
-      }
-
-      return true;
-    });
+    return alertas.filter((alerta) => alertaCoincideConSeccion(alerta, filtroActivo));
   }, [alertas, filtroActivo]);
 
   const metricas = useMemo(() => {
@@ -412,11 +443,14 @@ const Alertas = () => {
 
     const criticas = activas.filter((alerta) => {
       const texto = normalizarTexto(`${obtenerNivel(alerta)} ${obtenerTipo(alerta)}`);
-      return texto.includes('critica') || texto.includes('sin stock');
+      return texto.includes('critica') || texto.includes('sin stock') || texto.includes('agotado');
     }).length;
 
     const bajoStock = activas.filter((alerta) => normalizarTexto(obtenerTipo(alerta)).includes('stock bajo')).length;
-    const altaDemanda = activas.filter((alerta) => normalizarTexto(obtenerTipo(alerta)).includes('alta demanda')).length;
+    const altaDemanda = activas.filter((alerta) => {
+      const tipo = normalizarTexto(obtenerTipo(alerta));
+      return tipo.includes('alta demanda') || tipo.includes('reabastecimiento');
+    }).length;
 
     return {
       total: alertas.length,
@@ -427,14 +461,27 @@ const Alertas = () => {
     };
   }, [alertas]);
 
+  const fichasAlertas = useMemo(() => {
+    const activas = alertas.filter((alerta) => !esRevisada(alerta) && !esAtendida(alerta));
+    return seccionesAlertas.map((seccion) => {
+      const registros = alertas.filter((alerta) => alertaCoincideConSeccion(alerta, seccion.id));
+      const registrosActivos = activas.filter((alerta) => alertaCoincideConSeccion(alerta, seccion.id));
+
+      return {
+        ...seccion,
+        total: registros.length,
+        activas: registrosActivos.length,
+        productos: registros.slice(0, 3),
+      };
+    });
+  }, [alertas]);
+
   return (
     <section className="alertas-page space-y-6 rounded-2xl p-0">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <div className="flex items-center gap-3">
-            <span className="grid h-12 w-12 place-items-center rounded-xl bg-transparent text-yellow-500">
-              <Bell size={35} />
-            </span>
+            <Bell size={30} className="text-slate-950" />
             <h1 className="text-3xl font-bold text-slate-950">Alertas de inventario</h1>
           </div>
           <p className="mt-1 text-slate-500">
@@ -653,22 +700,40 @@ const Alertas = () => {
         ))}
       </div>
 
-      <div className="alerta-filterbar rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
-        <div className={`${tabGroupBase} m-2`}>
-          {filtros.map((filtro) => (
-            <button
-              key={filtro.id}
-              type="button"
-              onClick={() => setFiltroActivo(filtro.id)}
-              className={`${tabButtonBase} min-w-[134px] ${
-                filtroActivo === filtro.id ? activePanelTab : inactivePanelTab
-              }`}
-            >
-              {filtro.label}
-            </button>
-          ))}
+      <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div className="overflow-x-auto border-b border-slate-200 bg-slate-50 px-3 pt-3">
+          <div className="flex min-w-max gap-2">
+            {fichasAlertas.map((ficha) => {
+              const Icon = ficha.Icon;
+              const activa = filtroActivo === ficha.id;
+
+              return (
+                <button
+                  key={ficha.id}
+                  type="button"
+                  onClick={() => setFiltroActivo(ficha.id)}
+                  className={`inline-flex items-center gap-2 rounded-t-lg border px-4 py-3 text-sm font-bold transition ${
+                    activa
+                      ? 'border-slate-200 border-b-white bg-white text-slate-950'
+                      : 'border-transparent bg-transparent text-slate-500 hover:bg-white/70 hover:text-slate-950'
+                  }`}
+                >
+                  <Icon size={17} />
+                  {ficha.label}
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-xs ${
+                      activa ? 'bg-slate-950 text-white' : 'bg-slate-200 text-slate-700'
+                    }`}
+                  >
+                    {ficha.total}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
-      </div>
+
+      </section>
 
       {cargando ? (
         <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-slate-500 shadow-sm">
@@ -735,7 +800,7 @@ const Alertas = () => {
                       </div>
                     </div>
 
-                    <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+                    <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-start">
                       <button
                         type="button"
                         onClick={() => solicitarCompra(alerta)}

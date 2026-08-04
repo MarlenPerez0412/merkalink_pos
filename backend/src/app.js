@@ -15,6 +15,7 @@ import empresaRoutes from './routes/empresa.routes.js';
 import productosRoutes from './routes/productos.routes.js';
 import proveedoresRoutes from './routes/proveedores.routes.js';
 import reportesRoutes from './routes/reportes.routes.js';
+import reservasStockRoutes from './routes/reservasStock.routes.js';
 import ventasRoutes from './routes/ventas.routes.js';
 
 import { testConnection } from './config/db.js';
@@ -67,6 +68,7 @@ app.use('/api/cortes-caja', cortesCajaRoutes);
 app.use('/api/reportes', reportesRoutes);
 app.use('/api/alertas', alertasRoutes);
 app.use('/api/caja', cajaRoutes);
+app.use('/api/reservas-stock', reservasStockRoutes);
 
 
 app.use((req, res) => {

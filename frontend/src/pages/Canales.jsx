@@ -1,8 +1,8 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, Edit2, Globe, Plus, Save, Store, Trash2, TrendingUp, X, XCircle } from 'lucide-react';
+import { AlertCircle, CheckCircle, Edit2, Globe, PauseCircle, Plus, Save, Store, TrendingUp, X, XCircle } from 'lucide-react';
 import { BarChart, Card, defaultChartOptions } from '../components';
-import { createCanal, deleteCanal, getCanales, updateCanal } from '../services/api/canalesApi';
+import { createCanal, deactivateCanal, getCanales, updateCanal } from '../services/api/canalesApi';
 import { getEmpresa } from '../services/api/empresaApi';
 import { getVentas } from '../services/api/ventasApi';
 import {
@@ -31,6 +31,13 @@ const normalizarEstado = (estado = '') => {
   if (estadoLower === 'activo' || estadoLower === 'activa') return 'activo';
   return estadoLower || 'inactivo';
 };
+
+const normalizarNombre = (nombre = '') =>
+  String(nombre)
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
 
 const obtenerPlataforma = (canal) => {
   const nombre = canal.nombre?.toLowerCase() || '';
@@ -171,6 +178,22 @@ const Canales = () => {
       return;
     }
 
+    const origenDuplicado = canales.find(
+      (canal) =>
+        normalizarNombre(canal.nombre) === normalizarNombre(formData.nombre) &&
+        Number(canal.id) !== Number(canalEditando?.id || 0),
+    );
+
+    if (origenDuplicado) {
+      setError(
+        normalizarEstado(origenDuplicado.estado) === 'activo'
+          ? 'Este origen de venta ya existe. Revisa la lista antes de crear uno nuevo.'
+          : 'Este origen de venta ya existe como desactivado. Activalo desde la lista si deseas usarlo nuevamente.',
+      );
+      setSuccess('');
+      return;
+    }
+
     try {
       setSaving(true);
       setError('');
@@ -195,21 +218,18 @@ const Canales = () => {
 
   const confirmarEliminar = async () => {
     if (!origenEliminar) return;
+
     try {
       setSaving(true);
       setError('');
       setSuccess('');
 
-      await deleteCanal(origenEliminar.id);
+      await deactivateCanal(origenEliminar.id);
       await cargarDatos();
-      setSuccess(
-        origenEliminar.ordenes > 0
-          ? 'Origen de venta desactivado correctamente. El historial de ventas se conservo.'
-          : 'Origen de venta eliminado correctamente.',
-      );
+      setSuccess('Origen de venta desactivado correctamente. Se conserva en la lista con estado desactivado.');
       setOrigenEliminar(null);
     } catch (err) {
-      setError(err.message || 'No se pudo eliminar el origen de venta.');
+      setError(err.message || 'No se pudo desactivar el origen de venta.');
     } finally {
       setSaving(false);
     }
@@ -218,7 +238,10 @@ const Canales = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-slate-950 sm:text-3xl">Origen de venta</h2>
+        <div className="flex items-center gap-3">
+          <Store size={30} className="text-slate-950" />
+          <h2 className="text-2xl font-bold text-slate-950 sm:text-3xl">Origen de venta</h2>
+        </div>
         <p className="mt-1 text-sm text-slate-500">
           Origenes de {empresa?.nombre || 'MercaLink POS'} para identificar de donde provienen las ventas.
         </p>
@@ -366,13 +389,14 @@ const Canales = () => {
                         </div>
 
                         <span
-                          className={`w-fit rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ${
+                          className={`inline-flex w-fit items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ${
                             canal.estadoNormalizado === 'activo'
                               ? 'bg-green-50 text-green-700 ring-green-200'
                               : 'bg-slate-100 text-slate-600 ring-slate-200'
                           }`}
                         >
-                          {canal.estadoNormalizado}
+                          {canal.estadoNormalizado === 'activo' ? <CheckCircle size={14} /> : <PauseCircle size={14} />}
+                          {canal.estadoNormalizado === 'activo' ? 'Activo' : 'Desactivado'}
                         </span>
                       </div>
 
@@ -400,14 +424,25 @@ const Canales = () => {
                           <Edit2 size={16} />
                           Editar
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => setOrigenEliminar(canal)}
-                          className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-100"
-                        >
-                          <Trash2 size={16} />
-                          {canal.ordenes > 0 ? 'Desactivar' : 'Eliminar'}
-                        </button>
+                        {canal.estadoNormalizado === 'activo' ? (
+                          <button
+                            type="button"
+                            onClick={() => setOrigenEliminar(canal)}
+                            className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-100"
+                          >
+                            <PauseCircle size={16} />
+                            Desactivar
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            disabled
+                            className="inline-flex flex-1 cursor-not-allowed items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-500"
+                          >
+                            <PauseCircle size={16} />
+                            Desactivado
+                          </button>
+                        )}
                       </div>
                     </Card>
                   ))}
@@ -484,16 +519,14 @@ const Canales = () => {
           <div className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-5 shadow-xl">
             <div className="flex items-start gap-4">
               <div className="rounded-lg bg-red-50 p-3 text-red-600">
-                <Trash2 size={22} />
+                <PauseCircle size={22} />
               </div>
               <div className="min-w-0 flex-1">
                 <h3 className="text-lg font-bold text-slate-950">
-                  {origenEliminar.ordenes > 0 ? 'Desactivar este origen de venta?' : 'Eliminar este origen de venta?'}
+                  Desactivar este origen de venta?
                 </h3>
                 <p className="mt-2 text-sm leading-6 text-slate-600">
-                  {origenEliminar.ordenes > 0
-                    ? 'Este origen tiene ventas relacionadas. Se conservara el historial y ya no podra seleccionarse para nuevas ventas si el backend lo desactiva.'
-                    : 'Esta opcion desaparecera de la lista activa. El historial de ventas existente no se modifica.'}
+                  Este origen cambiara a estado desactivado, permanecera visible en la lista y no podra seleccionarse para nuevas ventas.
                 </p>
               </div>
               <button
@@ -521,8 +554,8 @@ const Canales = () => {
                 disabled={saving}
                 className="inline-flex items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                <Trash2 size={16} />
-                {saving ? 'Procesando...' : origenEliminar.ordenes > 0 ? 'Si, desactivar' : 'Si, eliminar'}
+                <PauseCircle size={16} />
+                {saving ? 'Procesando...' : 'Si, desactivar'}
               </button>
             </div>
           </div>
@@ -533,3 +566,4 @@ const Canales = () => {
 };
 
 export default Canales;
+

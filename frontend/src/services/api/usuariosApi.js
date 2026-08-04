@@ -14,6 +14,16 @@ export const updateUsuario = (id, usuario) =>
     body: JSON.stringify(usuario),
   });
 
+export const activateUsuario = (id) =>
+  apiRequest(`/auth/usuarios/${id}/activar`, {
+    method: 'PATCH',
+  });
+
+export const deactivateUsuario = (id) =>
+  apiRequest(`/auth/usuarios/${id}/desactivar`, {
+    method: 'PATCH',
+  });
+
 export const deleteUsuario = (id) =>
   apiRequest(`/auth/usuarios/${id}`, {
     method: 'DELETE',

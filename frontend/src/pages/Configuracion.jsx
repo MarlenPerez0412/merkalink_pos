@@ -17,11 +17,15 @@ import {
   Palette,
   Phone,
   Plus,
+  Power,
+  PowerOff,
   Save,
   Settings,
   Truck,
   Trash2,
   User,
+  UserCheck,
+  UserX,
   Users,
   Upload,
   X,
@@ -36,15 +40,28 @@ import { getCanales } from '../services/api/canalesApi';
 import { getConfiguracion, updateConfiguracion } from '../services/api/configuracionApi';
 import { getEmpresa, updateEmpresa, uploadLogoEmpresa } from '../services/api/empresaApi';
 import { getProductos } from '../services/api/productosApi';
-import { createProveedor, deleteProveedor, getProveedores, updateProveedor } from '../services/api/proveedoresApi';
-import { createUsuario, deleteUsuario, getUsuarios, updateUsuario } from '../services/api/usuariosApi';
+import {
+  activateProveedor,
+  createProveedor,
+  deactivateProveedor,
+  deleteProveedor,
+  getProveedores,
+  updateProveedor,
+} from '../services/api/proveedoresApi';
+import {
+  activateUsuario,
+  createUsuario,
+  deactivateUsuario,
+  deleteUsuario,
+  getUsuarios,
+  updateUsuario,
+} from '../services/api/usuariosApi';
 import { getVentas } from '../services/api/ventasApi';
 import { cargarLogoEmpresaPdf, fitImageToBox, getLogoEmpresaSrc } from '../utils/logo';
 import {
   activePanelTab,
   inactivePanelTab,
   tabButtonBase,
-  tabGroupBase,
 } from '../utils/uiStyles';
 
 const tabs = [
@@ -167,8 +184,10 @@ const Configuracion = () => {
   });
   const [usuarioEditando, setUsuarioEditando] = useState(null);
   const [confirmarEliminarUsuario, setConfirmarEliminarUsuario] = useState(null);
+  const [cambiandoEstadoUsuario, setCambiandoEstadoUsuario] = useState(null);
   const [proveedorEditando, setProveedorEditando] = useState(null);
   const [confirmarEliminarProveedor, setConfirmarEliminarProveedor] = useState(null);
+  const [cambiandoEstadoProveedor, setCambiandoEstadoProveedor] = useState(null);
   const [formUsuario, setFormUsuario] = useState({
     nombre: '',
     correo: '',
@@ -501,7 +520,7 @@ const Configuracion = () => {
     }
   };
 
-  const confirmarBajaUsuario = async () => {
+  const confirmarEliminarUsuarioSeleccionado = async () => {
     if (!confirmarEliminarUsuario) return;
 
     try {
@@ -510,9 +529,34 @@ const Configuracion = () => {
       await deleteUsuario(confirmarEliminarUsuario.id);
       setConfirmarEliminarUsuario(null);
       setUsuarios(await getUsuarios());
-      setMensaje('Usuario desactivado correctamente. Las ventas históricas se conservan.');
+      setMensaje('Usuario eliminado correctamente.');
     } catch (err) {
-      setError(err.message || 'No se pudo desactivar el usuario.');
+      setError(err.message || 'No se pudo eliminar el usuario.');
+    }
+  };
+
+  const cambiarEstadoUsuario = async (usuario) => {
+    if (!usuario) return;
+    const activo = usuario.estado === 'Activo';
+
+    try {
+      setCambiandoEstadoUsuario(usuario.id);
+      setError('');
+      setMensaje('');
+
+      if (activo) {
+        await deactivateUsuario(usuario.id);
+        setMensaje('Usuario desactivado correctamente. Ya no podra iniciar sesion.');
+      } else {
+        await activateUsuario(usuario.id);
+        setMensaje('Usuario activado correctamente. Ya puede iniciar sesion segun su rol.');
+      }
+
+      setUsuarios(await getUsuarios());
+    } catch (err) {
+      setError(err.message || 'No se pudo cambiar el estado del usuario.');
+    } finally {
+      setCambiandoEstadoUsuario(null);
     }
   };
 
@@ -572,9 +616,35 @@ const Configuracion = () => {
       setProveedores(await getProveedores());
       window.dispatchEvent(new Event('proveedoresActualizados'));
       window.dispatchEvent(new Event('alertasActualizadas'));
-      setMensaje('Proveedor desactivado correctamente.');
+      setMensaje('Proveedor eliminado correctamente.');
     } catch (err) {
-      setError(err.message || 'No se pudo desactivar el proveedor.');
+      setError(err.message || 'No se pudo eliminar el proveedor.');
+    }
+  };
+
+  const cambiarEstadoProveedor = async (proveedor) => {
+    if (!proveedor) return;
+    const activo = proveedor.estado !== 'inactivo';
+
+    try {
+      setCambiandoEstadoProveedor(proveedor.id);
+      setError('');
+      setMensaje('');
+
+      if (activo) {
+        await deactivateProveedor(proveedor.id);
+        setMensaje('Proveedor desactivado correctamente. Se conserva para reactivarlo cuando vuelva a estar disponible.');
+      } else {
+        await activateProveedor(proveedor.id);
+        setMensaje('Proveedor activado correctamente. Ya aparece como opcion disponible en el sistema.');
+      }
+
+      setProveedores(await getProveedores());
+      window.dispatchEvent(new Event('proveedoresActualizados'));
+    } catch (err) {
+      setError(err.message || 'No se pudo cambiar el estado del proveedor.');
+    } finally {
+      setCambiandoEstadoProveedor(null);
     }
   };
 
@@ -1371,6 +1441,17 @@ const Configuracion = () => {
           </label>
           <label className="space-y-2">
             <span className="text-sm font-semibold text-slate-700">Contraseña temporal</span>
+            {usuarioEditando && (
+              <div className="mb-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+                <p className="text-xs font-bold uppercase text-amber-800">Recuperacion de contraseña</p>
+                <p className="mt-1 text-xs leading-5 text-amber-900">
+                  La contraseña actual esta protegida y no se puede visualizar. Para recuperar acceso, asigna una nueva contraseña temporal.
+                </p>
+                <p className="mt-2 rounded-md border border-amber-300 bg-white px-2 py-1 text-xs font-semibold text-slate-700">
+                  Contraseña actual: protegida
+                </p>
+              </div>
+            )}
             <div className="flex items-center rounded-lg border border-slate-300 bg-white px-3 py-2 focus-within:border-primary-500 focus-within:ring-2 focus-within:ring-primary-100">
               <input
                 type={usuarioPasswordVisible.password ? 'text' : 'password'}
@@ -1435,13 +1516,15 @@ const Configuracion = () => {
         </button>
       </form>
 
-      <div className="overflow-x-auto rounded-lg border border-slate-200">
-        <table className={`${tabGroupBase} m-2`}>
+      <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+        <table className="w-full min-w-[1120px] table-fixed text-left">
           <thead className="bg-slate-50 text-xs uppercase text-slate-500">
             <tr>
-              {['Nombre', 'Correo', 'Rol', 'Estado', 'Acciones'].map((heading) => (
-                <th key={heading} className="px-4 py-3">{heading}</th>
-              ))}
+              <th className="w-[20%] px-4 py-3">Nombre</th>
+              <th className="w-[25%] px-4 py-3">Correo</th>
+              <th className="w-[13%] px-4 py-3">Rol</th>
+              <th className="w-[12%] px-4 py-3">Estado</th>
+              <th className="w-[30%] px-4 py-3">Acciones</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -1453,33 +1536,55 @@ const Configuracion = () => {
               </tr>
             ) : (
               usuarios.map((usuario) => (
-                <tr key={usuario.id} className="hover:bg-slate-50">
-                  <td className="px-4 py-3 font-semibold text-slate-950">{usuario.nombre}</td>
-                  <td className="px-4 py-3 text-sm text-slate-600">{usuario.correo}</td>
-                  <td className="px-4 py-3 text-sm text-slate-600">{usuario.rol}</td>
-                  <td className="px-4 py-3">
+                <tr key={usuario.id} className="align-middle hover:bg-slate-50">
+                  <td className="px-4 py-4 font-semibold leading-5 text-slate-950">
+                    <span className="block truncate" title={usuario.nombre}>{usuario.nombre}</span>
+                  </td>
+                  <td className="px-4 py-4 text-sm text-slate-600">
+                    <span className="block truncate" title={usuario.correo}>{usuario.correo}</span>
+                  </td>
+                  <td className="px-4 py-4 text-sm text-slate-600">{usuario.rol}</td>
+                  <td className="px-4 py-4">
                     <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
                       usuario.estado === 'Activo' ? 'bg-green-50 text-green-700' : 'bg-slate-100 text-slate-600'
                     }`}>
                       {usuario.estado}
                     </span>
                   </td>
-                  <td className="px-4 py-3">
-                    <div className="flex gap-2">
+                  <td className="px-4 py-4">
+                    <div className="flex min-w-max items-center gap-2 whitespace-nowrap">
                       <button
                         type="button"
                         onClick={() => editarUsuario(usuario)}
-                        className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-100"
+                        className="inline-flex min-w-[92px] items-center justify-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-100"
                       >
-                        <Pencil size={16} />
+                        <Pencil size={15} />
                         Editar
                       </button>
                       <button
                         type="button"
-                        onClick={() => setConfirmarEliminarUsuario(usuario)}
-                        className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-100"
+                        onClick={() => cambiarEstadoUsuario(usuario)}
+                        disabled={cambiandoEstadoUsuario === usuario.id || Number(usuario.id) === Number(usuarioActual?.id)}
+                        className={`inline-flex min-w-[112px] items-center justify-center gap-1.5 rounded-lg border px-2.5 py-2 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-60 ${
+                          usuario.estado === 'Activo'
+                            ? 'border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100'
+                            : 'border-green-200 bg-green-50 text-green-700 hover:bg-green-100'
+                        }`}
                       >
-                        <Trash2 size={16} />
+                        {usuario.estado === 'Activo' ? <UserX size={15} /> : <UserCheck size={15} />}
+                        {cambiandoEstadoUsuario === usuario.id
+                          ? 'Procesando...'
+                          : usuario.estado === 'Activo'
+                            ? 'Desactivar'
+                            : 'Activar'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmarEliminarUsuario(usuario)}
+                        disabled={Number(usuario.id) === Number(usuarioActual?.id)}
+                        className="inline-flex min-w-[96px] items-center justify-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-2.5 py-2 text-xs font-semibold text-red-700 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <Trash2 size={15} />
                         Eliminar
                       </button>
                     </div>
@@ -1580,7 +1685,7 @@ const Configuracion = () => {
                   <td className="px-4 py-3 text-sm text-slate-600">{proveedor.direccion || 'Sin dirección'}</td>
                   <td className="px-4 py-3 text-sm text-slate-600">{proveedor.estado}</td>
                   <td className="px-4 py-3">
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
                       <button
                         type="button"
                         onClick={() => editarProveedor(proveedor)}
@@ -1588,6 +1693,23 @@ const Configuracion = () => {
                       >
                         <Pencil size={16} />
                         Editar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => cambiarEstadoProveedor(proveedor)}
+                        disabled={cambiandoEstadoProveedor === proveedor.id}
+                        className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60 ${
+                          proveedor.estado !== 'inactivo'
+                            ? 'border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100'
+                            : 'border-green-200 bg-green-50 text-green-700 hover:bg-green-100'
+                        }`}
+                      >
+                        {proveedor.estado !== 'inactivo' ? <PowerOff size={16} /> : <Power size={16} />}
+                        {cambiandoEstadoProveedor === proveedor.id
+                          ? 'Procesando...'
+                          : proveedor.estado !== 'inactivo'
+                            ? 'Desactivar'
+                            : 'Activar'}
                       </button>
                       <button
                         type="button"
@@ -1796,9 +1918,9 @@ const Configuracion = () => {
           <div className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-5 shadow-xl">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h3 className="text-lg font-bold text-slate-950">Desactivar usuario</h3>
+                <h3 className="text-lg font-bold text-slate-950">Eliminar usuario</h3>
                 <p className="mt-2 text-sm leading-6 text-slate-600">
-                  ¿Seguro que deseas desactivar este usuario? Ya no podrá iniciar sesión, pero sus ventas históricas se conservarán.
+                  Seguro que deseas eliminar este usuario? Esta accion intentara quitarlo definitivamente del sistema.
                 </p>
               </div>
               <button type="button" onClick={() => setConfirmarEliminarUsuario(null)} className="rounded-lg p-2 hover:bg-slate-100">
@@ -1815,10 +1937,10 @@ const Configuracion = () => {
               </button>
               <button
                 type="button"
-                onClick={confirmarBajaUsuario}
+                onClick={confirmarEliminarUsuarioSeleccionado}
                 className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700"
               >
-                Sí, desactivar
+                Si, eliminar
               </button>
             </div>
           </div>
@@ -1832,7 +1954,7 @@ const Configuracion = () => {
               <div>
                 <h3 className="text-lg font-bold text-slate-950">Eliminar proveedor</h3>
                 <p className="mt-2 text-sm leading-6 text-slate-600">
-                  El proveedor se desactivará y dejará de aparecer como opción activa para nuevos productos.
+                  El proveedor se eliminara del sistema y dejara de aparecer en las opciones. Si solo no estara disponible por temporada, usa Desactivar.
                 </p>
               </div>
               <button type="button" onClick={() => setConfirmarEliminarProveedor(null)} className="rounded-lg p-2 hover:bg-slate-100">

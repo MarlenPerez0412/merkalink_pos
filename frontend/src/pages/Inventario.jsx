@@ -9,6 +9,7 @@ import {
   ImageOff,
   ImageIcon,
   List,
+  Package,
   PackagePlus,
   Plus,
   Save,
@@ -109,6 +110,7 @@ const Inventario = () => {
   const [categoriaEditando, setCategoriaEditando] = useState(null);
   const [categoriaActiva, setCategoriaActiva] = useState('Todos');
   const [busqueda, setBusqueda] = useState(searchParams.get('buscar') || '');
+  const [busquedaCategoria, setBusquedaCategoria] = useState('');
   const [mostrarFormularioProducto, setMostrarFormularioProducto] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadingCategorias, setLoadingCategorias] = useState(true);
@@ -170,6 +172,18 @@ const Inventario = () => {
   }, [recargarInventario]);
 
   useEffect(() => {
+    const recargarProveedores = () => {
+      getProveedores().then(setProveedores).catch(() => setProveedores([]));
+    };
+
+    window.addEventListener('proveedoresActualizados', recargarProveedores);
+
+    return () => {
+      window.removeEventListener('proveedoresActualizados', recargarProveedores);
+    };
+  }, []);
+
+  useEffect(() => {
     const busquedaUrl = searchParams.get('buscar') || '';
     if (busquedaUrl) setBusqueda(busquedaUrl);
   }, [searchParams]);
@@ -185,6 +199,15 @@ const Inventario = () => {
   }, [categoriasDb]);
 
   const totalCategoriasActivas = categoriasDb.length;
+
+  const categoriasFiltradas = useMemo(() => {
+    const texto = busquedaCategoria.trim().toLowerCase();
+    if (!texto) return categoriasDb;
+
+    return categoriasDb.filter((categoria) =>
+      String(categoria.nombre || '').toLowerCase().includes(texto),
+    );
+  }, [categoriasDb, busquedaCategoria]);
 
   useEffect(() => {
     if (categoriaActiva !== 'Todos' && !categoriasOpciones.includes(categoriaActiva)) {
@@ -524,7 +547,10 @@ const Inventario = () => {
     <div className="space-y-5">
       <section className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-slate-950">Inventario</h1>
+          <div className="flex items-center gap-3">
+            <Package size={30} className="text-slate-950" />
+            <h1 className="text-3xl font-bold text-slate-950">Inventario</h1>
+          </div>
           <p className="mt-1 text-sm text-slate-500">
             Control de productos, categorias e imagenes de referencia para el POS.
           </p>
@@ -879,10 +905,14 @@ const Inventario = () => {
                 <button
                   type="submit"
                   disabled={guardandoCategoria}
-                  className="inline-flex items-center gap-2 rounded-lg bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
+                  className={`inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold shadow-sm transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                    categoriaEditando
+                      ? 'bg-slate-950 text-white ring-1 ring-slate-900 hover:bg-slate-800'
+                      : 'bg-slate-950 text-white hover:bg-slate-800'
+                  }`}
                 >
-                  <Plus size={16} />
-                  {guardandoCategoria ? 'Guardando...' : categoriaEditando ? 'Actualizar' : 'Guardar categoria'}
+                  {categoriaEditando ? <Save size={17} /> : <Plus size={16} />}
+                  {guardandoCategoria ? 'Guardando...' : categoriaEditando ? 'Actualizar' : 'Crear nueva categoria'}
                 </button>
 
                 {categoriaEditando && (
@@ -901,8 +931,34 @@ const Inventario = () => {
               <div className="flex flex-col gap-1 border-b border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                 <h2 className="font-bold text-slate-950">Categorias existentes</h2>
                 <span className="text-sm font-semibold text-slate-500">
-                  {totalCategoriasActivas} {totalCategoriasActivas === 1 ? 'categoria activa' : 'categorias activas'}
+                  {categoriasFiltradas.length} de {totalCategoriasActivas} categorias
                 </span>
+              </div>
+
+              <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
+                <label className="block space-y-2">
+                  <span className="text-sm font-semibold text-slate-700">Buscar categoria</span>
+                  <div className="flex items-center gap-3 rounded-lg border border-slate-300 bg-white px-3 py-2 focus-within:border-slate-950">
+                    <Search size={18} className="text-slate-400" />
+                    <input
+                      type="text"
+                      value={busquedaCategoria}
+                      onChange={(event) => setBusquedaCategoria(event.target.value)}
+                      className="w-full bg-transparent py-1 text-sm outline-none"
+                      placeholder="Buscar por nombre de categoria"
+                    />
+                    {busquedaCategoria && (
+                      <button
+                        type="button"
+                        onClick={() => setBusquedaCategoria('')}
+                        className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                        aria-label="Limpiar busqueda de categoria"
+                      >
+                        <X size={16} />
+                      </button>
+                    )}
+                  </div>
+                </label>
               </div>
 
               <div className="max-h-[520px] overflow-auto">
@@ -927,8 +983,14 @@ const Inventario = () => {
                           No hay categorias registradas.
                         </td>
                       </tr>
+                    ) : categoriasFiltradas.length === 0 ? (
+                      <tr>
+                        <td colSpan="3" className="px-4 py-8 text-center text-sm text-slate-500">
+                          No se encontraron categorias con ese nombre.
+                        </td>
+                      </tr>
                     ) : (
-                      categoriasDb.map((categoria) => (
+                      categoriasFiltradas.map((categoria) => (
                         <tr key={categoria.id} className="hover:bg-slate-50">
                           <td className="px-4 py-3 font-semibold text-slate-950">{categoria.nombre}</td>
                           <td className="px-4 py-3 text-sm text-slate-500">{categoria.totalProductos} productos</td>

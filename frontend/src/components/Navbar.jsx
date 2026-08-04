@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Bell, LogOut, Settings, User } from 'lucide-react';
+import { clearAuthSession } from '../services/api/apiClient';
 import { getAlertas } from '../services/api/alertasApi';
 
 const obtenerUsuario = () => {
@@ -107,9 +108,7 @@ const Navbar = ({ isSidebarCollapsed = false }) => {
 
   const handleLogout = () => {
     closeDropdown();
-    localStorage.removeItem('usuario');
-    localStorage.removeItem('token');
-    localStorage.removeItem('rol');
+    clearAuthSession();
     navigate('/login', { replace: true });
   };
 

@@ -1,5 +1,5 @@
 /* eslint-disable react-hooks/set-state-in-effect */
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import jsPDF from 'jspdf';
 import {
   Barcode,
@@ -19,6 +19,7 @@ import { createVentaPos } from '../services/api/ventasApi';
 import { getEmpresa } from '../services/api/empresaApi';
 import { getCanales } from '../services/api/canalesApi';
 import { getConfiguracion } from '../services/api/configuracionApi';
+import { liberarReservaStock, reservarStockTemporal } from '../services/api/reservasStockApi';
 import { getImageSrc } from '../utils/images';
 import { getEstadoStock } from '../utils/stock';
 import { cargarLogoEmpresaPdf, fitImageToBox } from '../utils/logo';
@@ -43,6 +44,11 @@ const limpiarTexto = (value = '') =>
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^\x20-\x7E]/g, '');
 
+const crearReservaToken = () => {
+  if (window.crypto?.randomUUID) return window.crypto.randomUUID();
+  return `reserva-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+};
+
 const agregarLinea = (pdf, texto, x, y, opciones = {}) => {
   pdf.text(limpiarTexto(texto), x, y, opciones);
 };
@@ -53,18 +59,23 @@ const normalizarProducto = (producto) => ({
   imagenUrl: producto.imagenUrl || producto.imagen_url || '',
   categoria: producto.categoria || producto.categoria_nombre || 'Sin categoria',
   precio: Number(producto.precio || 0),
-  stock: Number(producto.stock || 0),
+  stock: Number(producto.stockDisponible ?? producto.stock_disponible ?? producto.stock ?? 0),
+  stockFisico: Number(producto.stockFisico ?? producto.stock_fisico ?? producto.stock ?? 0),
+  stockReservado: Number(producto.stockReservado ?? producto.stock_reservado ?? 0),
+  stockDisponible: Number(producto.stockDisponible ?? producto.stock_disponible ?? producto.stock ?? 0),
 });
 
 const PuntoVenta = () => {
   const [usuario] = useState(obtenerUsuario);
   const [empresa, setEmpresa] = useState(null);
   const [productos, setProductos] = useState([]);
+  const carritoRef = useRef([]);
   const [busqueda, setBusqueda] = useState('');
   const [codigoBarras, setCodigoBarras] = useState('');
   const [carrito, setCarrito] = useState([]);
   const [origenesVenta, setOrigenesVenta] = useState([]);
   const [stockMinimoAlerta, setStockMinimoAlerta] = useState(5);
+  const [reservaToken, setReservaToken] = useState(crearReservaToken);
   const [canalId, setCanalId] = useState('');
   const [metodoPago, setMetodoPago] = useState('Efectivo');
   const [montoRecibido, setMontoRecibido] = useState('');
@@ -74,13 +85,14 @@ const PuntoVenta = () => {
   const [loading, setLoading] = useState(true);
   const [loadingOrigenes, setLoadingOrigenes] = useState(true);
   const [procesando, setProcesando] = useState(false);
+  const [reservando, setReservando] = useState(false);
   const [mensaje, setMensaje] = useState('');
   const [error, setError] = useState('');
 
-  const cargarProductos = async () => {
+  const cargarProductos = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await getProductos();
+      const data = await getProductos({ reservaToken });
       setProductos((data || []).map(normalizarProducto).filter((producto) => producto.estado !== 'Inactivo'));
       setError('');
     } catch (err) {
@@ -88,7 +100,7 @@ const PuntoVenta = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [reservaToken]);
 
   const cargarEmpresa = async () => {
     try {
@@ -136,7 +148,34 @@ const PuntoVenta = () => {
     cargarEmpresa();
     cargarOrigenesVenta();
     cargarConfiguracion();
-  }, []);
+  }, [cargarProductos]);
+
+  useEffect(() => {
+    carritoRef.current = carrito;
+  }, [carrito]);
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      cargarProductos();
+    }, 5000);
+
+    return () => window.clearInterval(intervalId);
+  }, [cargarProductos]);
+
+  useEffect(() => {
+    const liberarAlSalir = () => {
+      if (carritoRef.current.length > 0) {
+        liberarReservaStock(reservaToken).catch(() => {});
+      }
+    };
+
+    window.addEventListener('beforeunload', liberarAlSalir);
+
+    return () => {
+      window.removeEventListener('beforeunload', liberarAlSalir);
+      liberarAlSalir();
+    };
+  }, [reservaToken]);
 
   useEffect(() => {
     const recargarEmpresa = () => cargarEmpresa();
@@ -151,16 +190,39 @@ const PuntoVenta = () => {
     };
   }, []);
 
+  const reservasTemporales = useMemo(() => {
+    return carrito.reduce((acc, item) => {
+      acc[item.id] = Number(item.cantidad || 0);
+      return acc;
+    }, {});
+  }, [carrito]);
+
+  const productosConStockTemporal = useMemo(() => {
+    return productos.map((producto) => {
+      const stockReal = Number(producto.stockDisponible ?? producto.stock ?? 0);
+      const reservado = Number(reservasTemporales[producto.id] || 0);
+      const stockDisponible = Math.max(0, stockReal - reservado);
+
+      return {
+        ...producto,
+        stockReal,
+        stockReservadoTemporal: reservado,
+        stockDisponible,
+        stock: stockDisponible,
+      };
+    });
+  }, [productos, reservasTemporales]);
+
   const productosFiltrados = useMemo(() => {
     const texto = busqueda.trim().toLowerCase();
-    if (!texto) return productos;
+    if (!texto) return productosConStockTemporal;
 
-    return productos.filter((producto) =>
+    return productosConStockTemporal.filter((producto) =>
       `${producto.nombre} ${producto.sku} ${producto.codigoBarras} ${producto.categoria}`
         .toLowerCase()
         .includes(texto),
     );
-  }, [productos, busqueda]);
+  }, [productosConStockTemporal, busqueda]);
 
   const total = useMemo(() => {
     return carrito.reduce((sum, item) => sum + item.precio * item.cantidad, 0);
@@ -207,10 +269,20 @@ const PuntoVenta = () => {
     window.open(`https://wa.me/${numero}?text=${encodeURIComponent(construirMensajeTicket())}`, '_blank', 'noopener,noreferrer');
   };
 
+  const reservarCantidadProducto = async (productoId, cantidad) => {
+    await reservarStockTemporal({
+      token: reservaToken,
+      productoId,
+      cantidad,
+    });
+  };
 
+  const agregarProducto = async (producto) => {
+    const stockReal = Number(producto.stockReal ?? producto.stock ?? 0);
+    const reservadoActual = Number(reservasTemporales[producto.id] || 0);
+    const stockDisponible = Math.max(0, stockReal - reservadoActual);
 
-  const agregarProducto = (producto) => {
-    if (Number(producto.stock || 0) <= 0) {
+    if (stockDisponible <= 0) {
       setError(`Sin stock disponible para ${producto.nombre}.`);
       return;
     }
@@ -218,45 +290,83 @@ const PuntoVenta = () => {
     setError('');
     setMensaje('');
 
-    setCarrito((current) => {
-      const existente = current.find((item) => item.id === producto.id);
+    const existente = carrito.find((item) => item.id === producto.id);
+    const nuevaCantidad = existente ? existente.cantidad + 1 : 1;
 
-      if (existente) {
-        if (existente.cantidad >= Number(producto.stock || 0)) return current;
+    if (nuevaCantidad > stockReal) {
+      setError(`Solo hay ${stockReal} unidades disponibles para ${producto.nombre}.`);
+      return;
+    }
 
-        return current.map((item) =>
-          item.id === producto.id ? { ...item, cantidad: item.cantidad + 1 } : item,
-        );
-      }
+    try {
+      setReservando(true);
+      await reservarCantidadProducto(producto.id, nuevaCantidad);
 
-      return [
-        ...current,
-        {
-          id: producto.id,
-          nombre: producto.nombre,
-          precio: Number(producto.precio || 0),
-          stock: Number(producto.stock || 0),
-          codigoBarras: producto.codigoBarras,
-          cantidad: 1,
-        },
-      ];
-    });
+      setCarrito((current) => {
+        const itemExistente = current.find((item) => item.id === producto.id);
+
+        if (itemExistente) {
+          return current.map((item) =>
+            item.id === producto.id ? { ...item, cantidad: nuevaCantidad } : item,
+          );
+        }
+
+        return [
+          ...current,
+          {
+            id: producto.id,
+            nombre: producto.nombre,
+            precio: Number(producto.precio || 0),
+            stock: stockReal,
+            stockReal,
+            codigoBarras: producto.codigoBarras,
+            reservaToken,
+            cantidad: 1,
+          },
+        ];
+      });
+
+      await cargarProductos();
+    } catch (err) {
+      setError(err.message || `No se pudo reservar stock para ${producto.nombre}.`);
+    } finally {
+      setReservando(false);
+    }
   };
 
-  const actualizarCantidad = (productoId, delta) => {
-    setCarrito((current) =>
-      current
-        .map((item) => {
-          if (item.id !== productoId) return item;
-          const cantidad = Math.min(item.stock, Math.max(0, item.cantidad + delta));
-          return { ...item, cantidad };
-        })
-        .filter((item) => item.cantidad > 0),
-    );
+  const actualizarCantidad = async (productoId, delta) => {
+    const itemActual = carrito.find((item) => item.id === productoId);
+    if (!itemActual) return;
+
+    const cantidad = Math.min(itemActual.stock, Math.max(0, itemActual.cantidad + delta));
+
+    try {
+      setReservando(true);
+      await reservarCantidadProducto(productoId, cantidad);
+      setCarrito((current) =>
+        current
+          .map((item) => (item.id === productoId ? { ...item, cantidad } : item))
+          .filter((item) => item.cantidad > 0),
+      );
+      await cargarProductos();
+    } catch (err) {
+      setError(err.message || 'No se pudo actualizar la reserva de stock.');
+    } finally {
+      setReservando(false);
+    }
   };
 
-  const quitarProducto = (productoId) => {
-    setCarrito((current) => current.filter((item) => item.id !== productoId));
+  const quitarProducto = async (productoId) => {
+    try {
+      setReservando(true);
+      await reservarCantidadProducto(productoId, 0);
+      setCarrito((current) => current.filter((item) => item.id !== productoId));
+      await cargarProductos();
+    } catch (err) {
+      setError(err.message || 'No se pudo liberar la reserva de stock.');
+    } finally {
+      setReservando(false);
+    }
   };
 
   const handleCodigoSubmit = (event) => {
@@ -264,7 +374,7 @@ const PuntoVenta = () => {
     const codigo = codigoBarras.trim();
     if (!codigo) return;
 
-    const producto = productos.find(
+    const producto = productosConStockTemporal.find(
       (item) => String(item.codigoBarras || item.codigo_barras || '') === codigo,
     );
 
@@ -293,7 +403,7 @@ const PuntoVenta = () => {
       return;
     }
 
-    const sinStock = carrito.find((item) => item.cantidad > item.stock);
+    const sinStock = carrito.find((item) => item.cantidad > Number(item.stockReal ?? item.stock ?? 0));
     if (sinStock) {
       setError(`Stock insuficiente para ${sinStock.nombre}.`);
       return;
@@ -315,6 +425,7 @@ const PuntoVenta = () => {
         canalId: Number(canalId),
         montoRecibido: metodoPago === 'Efectivo' ? recibidoNumero : total,
         cambio,
+        reservaToken,
       });
 
       setTicket({
@@ -327,6 +438,7 @@ const PuntoVenta = () => {
         cambio,
       });
       setCarrito([]);
+      setReservaToken(crearReservaToken());
       setMontoRecibido('');
       setWhatsappCliente('');
       setCompartirError('');
@@ -541,7 +653,10 @@ const PuntoVenta = () => {
       <section className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <p className="text-sm font-semibold text-primary-700">MercaLink POS</p>
-          <h1 className="text-3xl font-bold text-slate-950">Punto de Venta</h1>
+          <div className="mt-1 flex items-center gap-3">
+            <ShoppingCart size={30} className="text-slate-950" />
+            <h1 className="text-3xl font-bold text-slate-950">Punto de Venta</h1>
+          </div>
           <p className="mt-1 text-sm text-slate-500">
             Venta rapida para restaurante con inventario y ticket conectado a MySQL.
           </p>
@@ -562,37 +677,57 @@ const PuntoVenta = () => {
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px] 2xl:grid-cols-[minmax(0,1fr)_420px]">
         <div className="space-y-5">
-          <section className="grid grid-cols-1 gap-4 rounded-lg border border-slate-200 bg-white p-5 shadow-sm md:grid-cols-2">
-            <label className="space-y-2">
-              <span className="text-sm font-semibold text-slate-700">Buscar producto</span>
-              <div className="flex items-center gap-3 rounded-lg border border-slate-300 px-3 py-2 focus-within:border-slate-950">
-                <Search size={18} className="text-slate-400" />
-                <input
-                  value={busqueda}
-                  onChange={(event) => setBusqueda(event.target.value)}
-                  className="w-full bg-transparent py-1 outline-none"
-                  placeholder="Nombre, SKU, codigo o categoria"
-                />
+          <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+            <div className="border-b border-slate-200 bg-slate-50 px-5 py-4">
+              <div className="flex items-center gap-3">
+                <Search size={22} className="text-slate-950" />
+                <div>
+                  <h2 className="font-bold text-slate-950">Localizar producto</h2>
+                </div>
               </div>
-            </label>
+            </div>
 
-            <form onSubmit={handleCodigoSubmit} className="space-y-2">
-              <span className="text-sm font-semibold text-slate-700">Codigo de barras</span>
-              <div className="flex items-center gap-3 rounded-lg border border-slate-300 px-3 py-2 focus-within:border-slate-950">
-                <Barcode size={18} className="text-slate-400" />
-                <input
-                  value={codigoBarras}
-                  onChange={(event) => setCodigoBarras(event.target.value)}
-                  className="w-full bg-transparent py-1 outline-none"
-                  placeholder="Escanear o escribir y Enter"
-                />
-              </div>
-            </form>
+            <div className="grid grid-cols-1 gap-4 p-5 md:grid-cols-2">
+              <label className="space-y-2">
+                <span className="text-sm font-semibold text-slate-700">Buscar producto</span>
+                <div className="flex items-center gap-3 rounded-lg border border-slate-300 px-3 py-2 focus-within:border-slate-950">
+                  <Search size={18} className="text-slate-400" />
+                  <input
+                    value={busqueda}
+                    onChange={(event) => setBusqueda(event.target.value)}
+                    className="w-full bg-transparent py-1 outline-none"
+                    placeholder="Nombre, SKU, codigo o categoria"
+                  />
+                </div>
+              </label>
+
+              <form onSubmit={handleCodigoSubmit} className="space-y-2">
+                <span className="text-sm font-semibold text-slate-700">Codigo de barras</span>
+                <div className="flex items-center gap-3 rounded-lg border border-slate-300 px-3 py-2 focus-within:border-slate-950">
+                  <Barcode size={18} className="text-slate-400" />
+                  <input
+                    value={codigoBarras}
+                    onChange={(event) => setCodigoBarras(event.target.value)}
+                    className="w-full bg-transparent py-1 outline-none"
+                    placeholder="Escanear o escribir y Enter"
+                  />
+                </div>
+              </form>
+            </div>
           </section>
 
           <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-            <div className="border-b border-slate-200 px-5 py-4">
-              <h2 className="font-bold text-slate-950">Productos disponibles</h2>
+            <div className="flex flex-col gap-3 border-b border-slate-200 bg-slate-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-3">
+                <ShoppingCart size={22} className="text-slate-950" />
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Ficha de catalogo</p>
+                  <h2 className="font-bold text-slate-950">Productos disponibles</h2>
+                </div>
+              </div>
+              <span className="w-fit rounded-full bg-white px-3 py-1 text-xs font-bold text-slate-700 ring-1 ring-slate-200">
+                {productosFiltrados.length} productos
+              </span>
             </div>
             <div className="max-h-[640px] overflow-auto bg-slate-50 p-4">
               {loading && <p className="p-5 text-sm text-slate-500">Cargando productos...</p>}
@@ -604,13 +739,14 @@ const PuntoVenta = () => {
                   const imagenProducto = getImageSrc(producto.imagenUrl);
                   const estadoStock = getEstadoStock(producto, stockMinimoAlerta);
                   const sinStock = !estadoStock.disponible;
+                  const reservado = Number(producto.stockReservadoTemporal || 0);
 
                   return (
                     <button
                       key={producto.id}
                       type="button"
                       onClick={() => agregarProducto(producto)}
-                      disabled={sinStock}
+                      disabled={sinStock || reservando}
                       className="group flex min-h-[340px] flex-col overflow-hidden rounded-lg border border-slate-200 bg-white text-left shadow-sm transition hover:-translate-y-0.5 hover:border-yellow-300 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       <div className="grid h-40 w-full place-items-center overflow-hidden bg-slate-100 sm:h-44">
@@ -660,8 +796,13 @@ const PuntoVenta = () => {
                               estadoStock.className
                             }`}
                           >
-                            {estadoStock.label} - Stock {producto.stock}
+                            {estadoStock.label} - Disponible {producto.stockDisponible}
                           </span>
+                          {reservado > 0 && (
+                            <span className="w-fit rounded-full bg-yellow-100 px-2.5 py-1 text-yellow-800">
+                              Reservado temporal: {reservado}
+                            </span>
+                          )}
                         </div>
                       </div>
                     </button>
@@ -686,15 +827,16 @@ const PuntoVenta = () => {
                     </p>
                   </div>
                   <div className="text-sm font-semibold text-slate-700">
-                    {formatCurrency(producto.precio)} - Stock {producto.stock}
+                    {formatCurrency(producto.precio)} - Disponible {producto.stockDisponible}
                   </div>
                   <button
                     type="button"
                     onClick={() => agregarProducto(producto)}
-                    className="inline-flex items-center justify-center gap-2 rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
+                    disabled={reservando || Number(producto.stockDisponible || 0) <= 0}
+                    className="inline-flex items-center justify-center gap-2 rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     <Plus size={16} />
-                    Agregar
+                    {reservando ? 'Reservando...' : 'Agregar'}
                   </button>
                 </div>
               ))}
@@ -703,11 +845,22 @@ const PuntoVenta = () => {
         </div>
 
         <aside className="space-y-5 lg:sticky lg:top-6 lg:self-start">
-          <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="mb-4 flex items-center gap-2 font-bold text-slate-950">
-              <ShoppingCart size={20} />
-              Carrito
-            </h2>
+          <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+            <div className="border-b border-slate-200 bg-slate-50 px-5 py-4">
+              <div className="flex items-center gap-3">
+                <ShoppingCart size={22} className="text-slate-950" />
+                <div>
+                  <h2 className="font-bold text-slate-950">Carrito y pago</h2>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-5">
+            {carrito.length > 0 && (
+              <p className="mb-4 rounded-lg border border-yellow-200 bg-yellow-50 px-3 py-2 text-xs font-semibold text-yellow-800">
+                Reserva temporal: {reservaToken.slice(-8).toUpperCase()}
+              </p>
+            )}
 
             <div className="space-y-3">
               {carrito.length === 0 && (
@@ -722,11 +875,15 @@ const PuntoVenta = () => {
                     <div>
                       <p className="font-semibold text-slate-950">{item.nombre}</p>
                       <p className="text-sm text-slate-500">{formatCurrency(item.precio)} c/u</p>
+                      <p className="mt-1 text-xs font-semibold text-yellow-700">
+                        Apartado en esta venta: {item.cantidad} de {item.stockReal ?? item.stock}
+                      </p>
                     </div>
                     <button
                       type="button"
                       onClick={() => quitarProducto(item.id)}
-                      className="rounded-lg p-2 text-red-600 hover:bg-red-50"
+                      disabled={reservando}
+                      className="rounded-lg p-2 text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <Trash2 size={16} />
                     </button>
@@ -737,7 +894,8 @@ const PuntoVenta = () => {
                       <button
                         type="button"
                         onClick={() => actualizarCantidad(item.id, -1)}
-                        className="rounded-lg border border-slate-200 p-2 hover:bg-slate-50"
+                        disabled={reservando}
+                        className="rounded-lg border border-slate-200 p-2 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         <Minus size={15} />
                       </button>
@@ -745,7 +903,8 @@ const PuntoVenta = () => {
                       <button
                         type="button"
                         onClick={() => actualizarCantidad(item.id, 1)}
-                        className="rounded-lg border border-slate-200 p-2 hover:bg-slate-50"
+                        disabled={reservando}
+                        className="rounded-lg border border-slate-200 p-2 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         <Plus size={15} />
                       </button>
@@ -834,16 +993,28 @@ const PuntoVenta = () => {
             <button
               type="button"
               onClick={finalizarVenta}
-              disabled={procesando}
+              disabled={procesando || reservando}
               className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-slate-950 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
             >
               <CreditCard size={18} />
-              {procesando ? 'Procesando...' : 'Finalizar venta'}
+              {procesando ? 'Procesando...' : reservando ? 'Reservando stock...' : 'Finalizar venta'}
             </button>
+            </div>
           </section>
 
           {ticket && (
-            <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+              <div className="border-b border-slate-200 bg-slate-50 px-5 py-4">
+                <div className="flex items-center gap-3">
+                  <Download size={22} className="text-slate-950" />
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Ficha de ticket</p>
+                    <h2 className="font-bold text-slate-950">Comprobante de venta</h2>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-5">
               <div className="mb-4 flex items-start justify-between gap-3 rounded-lg border border-green-200 bg-green-50 px-4 py-3">
                 <div>
                   <p className="text-sm font-black text-green-800">Venta realizada - Folio {folioTicket}</p>
@@ -961,6 +1132,7 @@ const PuntoVenta = () => {
                   </button>
                 </div>
 
+              </div>
               </div>
             </section>
           )}

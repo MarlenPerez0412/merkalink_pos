@@ -891,7 +891,10 @@ const Ventas = () => {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-slate-950 sm:text-3xl">Ventas</h2>
+          <div className="flex items-center gap-3">
+            <TrendingUp size={30} className="text-slate-950" />
+            <h2 className="text-2xl font-bold text-slate-950 sm:text-3xl">Ventas</h2>
+          </div>
           <p className="mt-1 text-sm text-slate-500">
             Ingresos, ordenes y tickets POS de {empresa?.nombre || 'MercaLink POS'}.
           </p>
@@ -1104,7 +1107,10 @@ const Ventas = () => {
                 disabled={guardandoCorte}
                 className="inline-flex items-center gap-2 rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
               >
-                <Plus size={17} />
+                <span className="relative inline-grid h-5 w-5 place-items-center">
+                  <FileText size={19} />
+                  <Plus size={10} className="absolute -right-1 -top-1 rounded-full bg-white text-slate-950" />
+                </span>
                 {guardandoCorte ? 'Generando...' : 'Nuevo corte'}
               </button>
             </div>

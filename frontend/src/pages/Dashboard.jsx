@@ -3,9 +3,9 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
   Bell,
+  CircleDollarSign,
+  ClipboardCheck,
   ReceiptText,
-  ShoppingCart,
-  TrendingUp,
 } from 'lucide-react';
 import { Card, DoughnutChart, LineChart, StatCard, defaultChartOptions } from '../components';
 import { getAlertas } from '../services/api/alertasApi';
@@ -270,9 +270,9 @@ const Dashboard = () => {
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <StatCard title="Ventas totales" value={formatCurrency(totalVentas)} icon={TrendingUp} color="primary" />
+        <StatCard title="Ventas totales" value={formatCurrency(totalVentas)} icon={CircleDollarSign} color="primary" />
         <StatCard title="Ventas de hoy" value={formatCurrency(totalVentasHoy)} icon={ReceiptText} color="green" />
-        <StatCard title="Ordenes completadas" value={ventas.length} icon={ShoppingCart} color="accent" />
+        <StatCard title="Ordenes completadas" value={ventas.length} icon={ClipboardCheck} color="accent" />
         <StatCard title="Stock bajo" value={bajoStock} icon={AlertTriangle} color="orange" />
       </div>
 

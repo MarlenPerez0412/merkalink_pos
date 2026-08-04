@@ -47,9 +47,8 @@ export const obtenerCanales = asyncHandler(async (req, res) => {
       COALESCE(SUM(v.total), 0) AS totalVendido
     FROM canales c
     LEFT JOIN ventas v ON v.canal_id = c.id AND v.estado <> 'Cancelada'
-    WHERE c.activo = 1
     GROUP BY c.id, c.nombre, c.tipo, c.activo, c.estado
-    ORDER BY c.nombre ASC
+    ORDER BY c.activo DESC, c.nombre ASC
   `);
 
   res.json(rows.map((canal) => ({
@@ -76,35 +75,14 @@ export const crearCanal = asyncHandler(async (req, res) => {
   const existente = existentes[0];
 
   if (existente) {
-    const estaActivo = Number(existente.activo ?? 1) === 1 && String(existente.estado || 'Activo') !== 'Inactivo';
-
-    if (estaActivo) {
-      return res.status(409).json({
-        success: false,
-        message: 'Este origen ya existe.',
-        mensaje: 'Este origen ya existe.',
-      });
-    }
-
-    await pool.query(
-      'UPDATE canales SET tipo = ?, estado = ?, activo = 1 WHERE id = ?',
-      [normalizarTipoCanal(nombreLimpio, tipo), estado === 'Inactivo' ? 'Inactivo' : 'Activo', existente.id],
-    );
-
-    await registrarBitacora({
-      modulo: 'Origen de venta',
-      accion: 'Reactivar origen',
-      descripcion: `Se reactivo el origen de venta "${nombreLimpio}".`,
-      registro_afectado_id: existente.id,
-      datos_anteriores: existente,
-      datos_nuevos: { ...existente, tipo: normalizarTipoCanal(nombreLimpio, tipo), estado: estado === 'Inactivo' ? 'Inactivo' : 'Activo', activo: 1 },
-    });
-
-    return res.json({
-      id: existente.id,
-      success: true,
-      message: 'Este origen ya existia y fue reactivado.',
-      mensaje: 'Este origen ya existia y fue reactivado.',
+    return res.status(409).json({
+      success: false,
+      message: Number(existente.activo ?? 1) === 1 && String(existente.estado || 'Activo') !== 'Inactivo'
+        ? 'Este origen de venta ya existe.'
+        : 'Este origen de venta ya existe como desactivado. Activalo desde la lista si deseas usarlo nuevamente.',
+      mensaje: Number(existente.activo ?? 1) === 1 && String(existente.estado || 'Activo') !== 'Inactivo'
+        ? 'Este origen de venta ya existe.'
+        : 'Este origen de venta ya existe como desactivado. Activalo desde la lista si deseas usarlo nuevamente.',
     });
   }
 
@@ -146,12 +124,12 @@ export const actualizarCanal = asyncHandler(async (req, res) => {
     });
   }
 
-  const [duplicados] = await pool.query('SELECT id FROM canales WHERE LOWER(nombre) = LOWER(?) AND id <> ? AND activo = 1 LIMIT 1', [nombreLimpio, id]);
+  const [duplicados] = await pool.query('SELECT id, estado, activo FROM canales WHERE LOWER(nombre) = LOWER(?) AND id <> ? LIMIT 1', [nombreLimpio, id]);
   if (duplicados[0]) {
     return res.status(409).json({
       success: false,
-      message: 'Este origen ya existe.',
-      mensaje: 'Este origen ya existe.',
+      message: 'Este origen de venta ya existe.',
+      mensaje: 'Este origen de venta ya existe.',
     });
   }
 
@@ -188,6 +166,46 @@ export const actualizarCanal = asyncHandler(async (req, res) => {
     success: true,
     message: 'Origen de venta actualizado correctamente',
     mensaje: 'Canal actualizado correctamente',
+  });
+});
+
+export const desactivarCanal = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  await asegurarColumnaActivo();
+
+  const [anteriores] = await pool.query('SELECT * FROM canales WHERE id = ? LIMIT 1', [id]);
+  const anterior = anteriores[0];
+
+  const [result] = await pool.query(
+    `
+    UPDATE canales
+    SET estado = 'Inactivo', activo = 0
+    WHERE id = ?
+    `,
+    [id]
+  );
+
+  if (result.affectedRows === 0) {
+    return res.status(404).json({
+      success: false,
+      message: 'Origen de venta no encontrado',
+      mensaje: 'Canal no encontrado',
+    });
+  }
+
+  await registrarBitacora({
+    modulo: 'Origen de venta',
+    accion: 'Desactivar origen',
+    descripcion: `Se desactivo el origen de venta "${anterior?.nombre || id}".`,
+    registro_afectado_id: Number(id),
+    datos_anteriores: anterior || null,
+    datos_nuevos: { ...(anterior || {}), estado: 'Inactivo', activo: 0 },
+  });
+
+  res.json({
+    success: true,
+    message: 'Origen de venta desactivado correctamente',
+    mensaje: 'Canal desactivado correctamente',
   });
 });
 
@@ -230,3 +248,4 @@ export const eliminarCanal = asyncHandler(async (req, res) => {
     mensaje: 'Canal desactivado correctamente',
   });
 });
+
